@@ -200,7 +200,29 @@ export const ReceiptsPage: React.FC = () => {
                         {r.status === 'valid' ? 'বৈধ (VALID)' : 'বাতিল (CANCELLED)'}
                       </span>
                     </td>
-                    <td className="p-4 text-right space-x-2">
+                    <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
+                      <button
+                        onClick={() => {
+                          const societyName = 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড';
+                          const verifyUrl = `${window.location.origin}/verify/${r.receipt_number}`;
+                          const text = `*${societyName}* - অফিসিয়াল মানি রসিদ\n\n` +
+                            `📄 *রসিদ নং:* ${r.receipt_number}\n` +
+                            `👤 *সদস্য:* ${r.full_name_bn || r.member_id} (${r.member_id})\n` +
+                            `💰 *জমার পরিমাণ:* ৳${Number(r.amount).toLocaleString('en-IN')}/-\n` +
+                            `📅 *পরিশোধিত মাস:* ${r.payment_months || 'সঞ্চয় চাঁদা'}\n` +
+                            `🏦 *ব্যাংক/মাধ্যম:* ${r.bank_name || 'সোনালী ব্যাংক'}\n` +
+                            `✅ *স্ট্যাটাস:* অনুমোদিত ও বৈধ (VALID)\n\n` +
+                            `🔗 *অনলাইন রসিদ যাচাই ও কপি লিংক:*\n${verifyUrl}\n\n` +
+                            `_স্মার্ট সমবায় ম্যানেজমেন্ট সিস্টেম - SomobayPro_`;
+                          window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                        }}
+                        className="px-2.5 py-1 bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-lg text-xs font-semibold transition inline-flex items-center gap-1"
+                        title="হোয়াটসঅ্যাপে সরাসরি শেয়ার করুন"
+                      >
+                        <Share2 className="w-3 h-3 text-green-600" />
+                        <span className="hidden sm:inline">WhatsApp</span>
+                      </button>
+
                       <button
                         onClick={() => setSelectedReceipt(r)}
                         className="px-3 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-semibold transition"

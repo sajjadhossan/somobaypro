@@ -3,9 +3,12 @@ import { useAuth } from '../../context/AuthContext';
 import { useRealtime, useRealtimeRefresh } from '../../context/RealtimeContext';
 import { 
   CreditCard, CheckSquare, Receipt, AlertCircle, 
-  CheckCircle2, Clock, QrCode, ArrowRight, UserCheck, ShieldCheck, Download, Wifi, RefreshCw, IdCard
+  CheckCircle2, Clock, QrCode, ArrowRight, UserCheck, ShieldCheck, Download, Wifi, RefreshCw, IdCard,
+  BookOpen, Camera
 } from 'lucide-react';
 import { ReceiptModal } from '../../components/ReceiptModal';
+import { PassbookModal } from '../../components/PassbookModal';
+import { SelfKycModal } from '../../components/SelfKycModal';
 
 interface MemberDashboardProps {
   onNavigate: (path: string) => void;
@@ -17,6 +20,8 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ onNavigate }) 
   const [subData, setSubData] = useState<any>(null);
   const [recentReceipts, setRecentReceipts] = useState<any[]>([]);
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
+  const [showPassbook, setShowPassbook] = useState(false);
+  const [showSelfKyc, setShowSelfKyc] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchMemberDashboard = async () => {
@@ -99,18 +104,34 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ onNavigate }) 
           {/* Quick Action Buttons */}
           <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
             <button
+              onClick={() => setShowPassbook(true)}
+              className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-bold text-xs sm:text-sm border border-white/20 shadow-md backdrop-blur-md flex items-center justify-center gap-2 transition"
+              title="ডিজিটাল সঞ্চয় পাসবুক ও খতিয়ান দেখুন বা প্রিন্ট করুন"
+            >
+              <BookOpen className="w-4 h-4 text-emerald-300" />
+              <span>{language === 'bn' ? 'সঞ্চয় পাসবুক' : 'Passbook'}</span>
+            </button>
+            <button
+              onClick={() => setShowSelfKyc(true)}
+              className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-bold text-xs sm:text-sm border border-white/20 shadow-md backdrop-blur-md flex items-center justify-center gap-2 transition"
+              title="প্রোফাইল ছবি ও নমিনি কেওয়াইসি আপডেট"
+            >
+              <Camera className="w-4 h-4 text-teal-300" />
+              <span>{language === 'bn' ? 'ছবি ও নমিনি' : 'Self-KYC'}</span>
+            </button>
+            <button
               onClick={() => onNavigate('id-card')}
-              className="flex-1 sm:flex-initial px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-bold text-xs sm:text-sm border border-white/20 shadow-md backdrop-blur-md flex items-center justify-center gap-2 transition"
+              className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-bold text-xs sm:text-sm border border-white/20 shadow-md backdrop-blur-md flex items-center justify-center gap-2 transition"
             >
               <IdCard className="w-4 h-4 text-emerald-300" />
               <span>{language === 'bn' ? 'আইডি কার্ড' : 'ID Card'}</span>
             </button>
             <button
               onClick={() => onNavigate('submit-deposit')}
-              className="flex-1 sm:flex-initial px-5 py-3 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 rounded-2xl font-bold text-xs sm:text-sm shadow-lg shadow-emerald-950/30 flex items-center justify-center gap-2 transition"
+              className="flex-1 sm:flex-initial px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 rounded-2xl font-bold text-xs sm:text-sm shadow-lg shadow-emerald-950/30 flex items-center justify-center gap-2 transition"
             >
               <CheckSquare className="w-4 h-4" />
-              <span>{language === 'bn' ? 'ব্যাংক জমা দাখিল' : 'Submit Bank Deposit'}</span>
+              <span>{language === 'bn' ? 'ব্যাংক জমা দাখিল' : 'Submit Deposit'}</span>
             </button>
           </div>
         </div>
@@ -305,6 +326,19 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ onNavigate }) 
         <ReceiptModal
           receipt={selectedReceipt}
           onClose={() => setSelectedReceipt(null)}
+        />
+      )}
+
+      {/* Digital Savings Passbook Modal */}
+      {showPassbook && (
+        <PassbookModal onClose={() => setShowPassbook(false)} />
+      )}
+
+      {/* Self-KYC Photo & Nominee Modal */}
+      {showSelfKyc && (
+        <SelfKycModal
+          onClose={() => setShowSelfKyc(false)}
+          onSuccess={fetchMemberDashboard}
         />
       )}
     </div>

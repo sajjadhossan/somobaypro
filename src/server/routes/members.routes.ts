@@ -1,11 +1,36 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import multer from 'multer';
+import path from 'path';
 import { db } from '../db/index';
 import { authenticate, requireRole } from '../middleware/auth';
 import { AuditService } from '../services/audit.service';
 import { NotificationService } from '../services/notification.service';
 
 const router = Router();
+
+// Multer storage for member profile photos
+const photoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.resolve(process.cwd(), 'uploads'));
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `member-${Date.now()}-${Math.round(Math.random() * 1e6)}${ext}`);
+  },
+});
+
+const uploadPhoto = multer({
+  storage: photoStorage,
+  limits: { fileSize: 4 * 1024 * 1024 }, // 4MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('শুধুমাত্র ছবি ফাইল অনুমোদিত।'));
+    }
+  },
+});
 
 // GET /api/members (List all members with filters)
 router.get('/', authenticate, (req: Request, res: Response) => {
@@ -52,6 +77,111 @@ router.get('/', authenticate, (req: Request, res: Response) => {
   const totalCount = (db.prepare(`SELECT count(*) as count FROM members`).get() as { count: number }).count;
 
   return res.json({ members, totalCount });
+});
+
+// GET /api/members/me/passbook (Digital Member Savings Passbook & Statement)
+router.get('/me/passbook', authenticate, (req: Request, res: Response) => {
+  const memberId = req.user!.role === 'general_member' 
+    ? req.user!.memberId 
+    : ((req.query.memberId as string) || req.user!.memberId);
+
+  const member = db.prepare(`SELECT * FROM members WHERE member_id = ?`).get(memberId) as any;
+  if (!member) return res.status(404).json({ error: 'সদস্য পাওয়া যায়নি।' });
+
+  // Get all approved receipts for this member ordered chronologically
+  const receipts = db.prepare(`
+    SELECT r.*, ps.deposit_date, ps.transaction_id, ps.member_bank_name
+    FROM receipts r
+    LEFT JOIN payment_submissions ps ON r.payment_submission_id = ps.id
+    WHERE r.member_id = ? AND r.status = 'valid'
+    ORDER BY r.deposit_date ASC, r.id ASC
+  `).all(memberId) as any[];
+
+  let runningBalance = 0;
+  const ledger = receipts.map((r, index) => {
+    runningBalance += Number(r.amount);
+    return {
+      sl: index + 1,
+      id: r.id,
+      receiptNumber: r.receipt_number,
+      paymentMonths: r.payment_months,
+      depositDate: r.deposit_date || (r.issued_at ? r.issued_at.split('T')[0] : ''),
+      bankName: r.bank_name,
+      accountNumber: r.account_number,
+      transactionId: r.transaction_id,
+      depositorName: r.depositor_name || member.full_name_bn,
+      amount: Number(r.amount),
+      runningBalance: runningBalance,
+      verificationToken: r.verification_token,
+      issuedAt: r.issued_at,
+    };
+  });
+
+  // Calculate dues
+  const duesRow = db.prepare(`
+    SELECT 
+      COALESCE(SUM(due_amount), 0) as total_obligated,
+      COALESCE(SUM(paid_amount), 0) as total_cleared,
+      COALESCE(SUM(due_amount - paid_amount), 0) as total_due
+    FROM subscription_dues
+    WHERE member_id = ?
+  `).get(memberId) as any;
+
+  return res.json({
+    member,
+    ledger,
+    summary: {
+      totalSavings: runningBalance,
+      totalDue: duesRow?.total_due || 0,
+      totalEntries: ledger.length,
+      currentMonthlyRate: member.monthly_subscription_amount || 1000,
+    }
+  });
+});
+
+// POST /api/members/me/photo (Self-KYC Profile Photo Upload)
+router.post('/me/photo', authenticate, uploadPhoto.single('photo'), (req: Request, res: Response) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'ছবি প্রদান করা আবশ্যক।' });
+  }
+
+  const memberId = req.user!.memberId;
+  const photoUrl = `/uploads/${req.file.filename}`;
+
+  db.prepare(`
+    UPDATE members 
+    SET photo_url = ?, updated_at = CURRENT_TIMESTAMP 
+    WHERE member_id = ?
+  `).run(photoUrl, memberId);
+
+  AuditService.log({
+    userId: req.user!.id,
+    userRole: req.user!.role,
+    action: 'UPDATE_PROFILE_PHOTO',
+    entityType: 'members',
+    entityId: memberId,
+    newValues: { photoUrl },
+  });
+
+  return res.json({ message: 'প্রোফাইল ছবি সফলভাবে আপডেট করা হয়েছে।', photoUrl });
+});
+
+// POST /api/members/me/nominee (Self-KYC Nominee Details Update)
+router.post('/me/nominee', authenticate, (req: Request, res: Response) => {
+  const memberId = req.user!.memberId;
+  const { nomineeName, nomineeRelation, nomineeNid, nomineeMobile } = req.body;
+
+  if (!nomineeName || !nomineeRelation) {
+    return res.status(400).json({ error: 'নমিনির নাম এবং সম্পর্ক আবশ্যক।' });
+  }
+
+  db.prepare(`
+    UPDATE members 
+    SET nominee_name = ?, nominee_relation = ?, nominee_nid = ?, nominee_mobile = ?, updated_at = CURRENT_TIMESTAMP 
+    WHERE member_id = ?
+  `).run(nomineeName.trim(), nomineeRelation.trim(), nomineeNid?.trim() || null, nomineeMobile?.trim() || null, memberId);
+
+  return res.json({ message: 'নমিনির তথ্য সফলভাবে সংরক্ষিত হয়েছে।' });
 });
 
 // GET /api/members/:memberId (Single member profile)

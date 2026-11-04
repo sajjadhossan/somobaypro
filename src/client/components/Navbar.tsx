@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   ShieldAlert, Bell, Globe, LogOut, User as UserIcon, 
-  Menu, X, CheckCircle, ChevronDown, Building2, Plus, Sparkles, PenTool, Wifi, WifiOff 
+  Menu, X, CheckCircle, ChevronDown, Building2, Plus, Sparkles, PenTool, Wifi, WifiOff,
+  Download, Smartphone
 } from 'lucide-react';
 import { SignaturePadModal } from './SignaturePadModal';
 import { useRealtime } from '../context/RealtimeContext';
@@ -21,6 +22,33 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) {
+      alert(language === 'bn' 
+        ? 'অ্যাপটি মোবাইলের হোমস্ক্রিনে ইনস্টল করতে ব্রাউজারের ৩-ডট মেন্যু থেকে "Add to Home screen" বা "Install app" চাপুন।' 
+        : 'To install the app, tap "Add to Home screen" or "Install app" in your browser menu.');
+      return;
+    }
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstallable(false);
+      setDeferredPrompt(null);
+    }
+  };
 
   const fetchSocieties = async () => {
     try {
@@ -239,6 +267,20 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
                 )}
               </div>
             )}
+
+            {/* PWA Install Button */}
+            <button
+              onClick={handleInstallClick}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold rounded-lg transition ${
+                isInstallable
+                  ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow hover:brightness-110 animate-pulse'
+                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+              }`}
+              title={language === 'bn' ? 'সোসাইটি মোবাইল অ্যাপ ইনস্টল করুন' : 'Install SomobayPro App'}
+            >
+              <Download className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline">{language === 'bn' ? 'অ্যাপ ইনস্টল' : 'Install'}</span>
+            </button>
 
             {/* Language Toggle */}
             <button
