@@ -192,13 +192,47 @@ Answer helpfully in Bengali.`;
   };
 }
 
+// GET /api/ai/status - Check if Gemini API is active
+router.get('/status', authenticate, (req: Request, res: Response) => {
+  const settings = db.prepare(`
+    SELECT gemini_api_key, gemini_model
+    FROM society_settings WHERE id = 1
+  `).get() as any;
+
+  const hasKey = Boolean(settings?.gemini_api_key || process.env.GEMINI_API_KEY);
+  return res.json({
+    active: hasKey,
+    model: settings?.gemini_model || 'gemini-2.0-flash',
+    source: settings?.gemini_api_key ? 'database' : (process.env.GEMINI_API_KEY ? 'environment' : 'none'),
+  });
+});
+
+// POST /api/ai/key - Set or update Gemini API Key
+router.post('/key', authenticate, (req: Request, res: Response) => {
+  const { apiKey, model } = req.body;
+  if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length < 8) {
+    return res.status(400).json({ error: 'বৈধ Gemini API Key আবশ্যক।' });
+  }
+
+  const modelToUse = model || 'gemini-2.0-flash';
+  db.prepare(`
+    UPDATE society_settings
+    SET gemini_api_key = ?, gemini_model = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = 1
+  `).run(apiKey.trim(), modelToUse);
+
+  return res.json({
+    message: 'Google Gemini API Key সফলভাবে সংরক্ষিত হয়েছে!',
+    model: modelToUse,
+  });
+});
+
 // Fallback Smart Local Assistant when API key is not yet added in settings
 function generateLocalSmartResponse(message: string, imageBase64?: string, societyContext?: any) {
-  const q = message.toLowerCase();
+  const q = message.toLowerCase().trim();
 
-  // If slip image was uploaded without Gemini key
+  // 1. Slip image uploaded without Gemini key
   if (imageBase64) {
-    // Pick first matching member from query or default to a member
     const matchedMember = societyContext?.membersList?.find((m: any) => 
       message.includes(m.name) || (m.mobile && message.includes(m.mobile))
     ) || societyContext?.membersList?.[0];
@@ -222,32 +256,82 @@ function generateLocalSmartResponse(message: string, imageBase64?: string, socie
     } : null;
 
     return {
-      reply: `✅ রসিদের ছবি গ্রহণ করা হয়েছে!\n\nসদস্য **${matchedMember?.name || 'সম্মানিত সদস্য'}**-এর জন্য মাসিক চাঁদা ৳${draft?.amount || 1000} টাকার একটি ব্যাংক জমা ড্রাফট তৈরি করা হয়েছে। নিচে ড্রাফটটি দেখে এক ক্লিকে অনুমোদন বা সংশোধন করতে পারেন।\n\n💡 *টিপস: জেমিনির অ্যাডভান্সড মাল্টিমোডাল ভিশন OCR সক্রিয় করতে সেটিংস পেজে আপনার ফ্রি Gemini API Key প্রদান করুন।*`,
+      reply: `✅ রসিদের ছবি গ্রহণ করা হয়েছে!\n\nসদস্য **${matchedMember?.name || 'সম্মানিত সদস্য'}**-এর জন্য মাসিক চাঁদা ৳${draft?.amount || 1000} টাকার একটি ব্যাংক জমা ড্রাফট তৈরি করা হয়েছে। নিচে ড্রাফটটি দেখে এক ক্লিকে অনুমোদন বা সংশোধন করতে পারেন।\n\n💡 *টিপস: আরও নিখুঁত অটো-OCR এর জন্য উপরে ⚙️ সেটিংসে আপনার ফ্রি Google Gemini API Key যুক্ত করুন।*`,
       draftSubmission: draft,
       geminiActive: false,
     };
   }
 
-  // Common Q&A
-  if (q.includes('বকেয়া') || q.includes('due')) {
+  // 2. Strict No Loans Inquiry
+  if (q.includes('লোন') || q.includes('ঋণ') || q.includes('ধার') || q.includes('loan') || q.includes('সুদ') || q.includes('interest')) {
+    return {
+      reply: `🚫 **সতর্কতা: কঠোরভাবে ঋণ ও সুদমুক্ত নীতি!**\n\nপ্রগতি কল্যাণ সমবায় সমিতি লিমিটেড কোনো প্রকার ঋণ, ধার বা সুদী লেনদেন পরিচালনা করে না। এটি শতভাগ ইসলামিক সমবায় নীতিমালা ও সঞ্চয়-ভিত্তিক সমিতিমাত্র। এখানে কেবল সদস্যপদ, নিয়মিত মাসিক সঞ্চয় চাঁদা ও অফিসিয়াল হিসাব পরিচালিত হয়।`,
+      draftSubmission: null,
+      geminiActive: false,
+    };
+  }
+
+  // 3. Member Specific Search (Check if any member's name or ID is in the query)
+  const matched = societyContext?.membersList?.find((m: any) => 
+    q.includes(m.name.toLowerCase()) || q.includes(m.id.toLowerCase()) || (m.mobile && q.includes(m.mobile))
+  );
+  if (matched) {
+    return {
+      reply: `👤 **সদস্যের তথ্য পাওয়া গেছে:**\n\n• **নাম:** ${matched.name}\n• **সদস্য আইডি:** ${matched.id}\n• **মোবাইল:** ${matched.mobile}\n• **মাসিক চাঁদার হার:** ৳${matched.monthlyFee?.toLocaleString('bn-BD')}/-\n• **মোট বকেয়া চাঁদা:** ${matched.dues > 0 ? `৳${matched.dues.toLocaleString('bn-BD')}/- (বকেয়া আছে)` : '✅ কোনো বকেয়া নেই (পরিশোধিত)'}\n\nআপনি চাইলে এই সদস্যের নামে জমা ড্রাফট তৈরি করতে পারেন।`,
+      draftSubmission: null,
+      geminiActive: false,
+    };
+  }
+
+  // 4. Passbook Inquiry
+  if (q.includes('পাসবুক') || q.includes('passbook') || q.includes('খতিয়ান') || q.includes('স্টেটমেন্ট')) {
+    return {
+      reply: `📗 **ডিজিটাল সঞ্চয় পাসবুক ও খতিয়ান:**\n\nসদস্যরা তাদের ড্যাশবোর্ডে থাকা **"সঞ্চয় পাসবুক"** বাটনে ক্লিক করে আজীবন জমার খতিয়ান, রানিং ব্যালেন্স এবং অফিশিয়াল সিল ও সভাপতি-কোষাধ্যক্ষের স্বাক্ষরসহ A4 সাইজে প্রিন্ট বা ডাউনলোড করতে পারেন।`,
+      draftSubmission: null,
+      geminiActive: false,
+    };
+  }
+
+  // 5. Share Certificate Inquiry
+  if (q.includes('শেয়ার') || q.includes('সনদ') || q.includes('সার্টিফিকেট') || q.includes('share')) {
+    return {
+      reply: `📜 **ডিজিটাল মূলধন শেয়ার সনদপত্র:**\n\nসমিতির প্রতিটি সদস্যের নামে ১০টি পেইড-আপ শেয়ার (মূল্য ৳১,০০০/-) বরাদ্দ রয়েছে। ড্যাশবোর্ডের **"শেয়ার সনদ"** বাটনে চাপ দিয়ে কিউআর ভেরিফিকেশন সংবলিত সনদপত্র প্রিন্ট করতে পারেন।`,
+      draftSubmission: null,
+      geminiActive: false,
+    };
+  }
+
+  // 6. Dues / Outstanding
+  if (q.includes('বকেয়া') || q.includes('due') || q.includes('বাকি')) {
     const duesList = societyContext?.membersList?.filter((m: any) => m.dues > 0) || [];
     return {
-      reply: `📊 **বকেয়া চাঁদার বর্তমান স্থিতি:**\nবর্তমানে মোট ${duesList.length} জন সম্মানিত সদস্যের বকেয়া রয়েছে। মোট বকেয়ার পরিমাণ: ৳${(societyContext?.totalDues || 0).toLocaleString('bn-BD')} টাকা।\n\n${duesList.map((m: any) => `• ${m.name} (${m.id}): ৳${m.dues.toLocaleString('bn-BD')}`).join('\n')}`,
+      reply: `📊 **বকেয়া চাঁদার বর্তমান স্থিতি:**\nবর্তমানে মোট ${duesList.length} জন সম্মানিত সদস্যের বকেয়া রয়েছে। মোট বকেয়ার পরিমাণ: **৳${(societyContext?.totalDues || 0).toLocaleString('bn-BD')} টাকা**।\n\n${duesList.slice(0, 10).map((m: any) => `• ${m.name} (${m.id}): ৳${m.dues.toLocaleString('bn-BD')}`).join('\n')}${duesList.length > 10 ? `\n... এবং আরও ${duesList.length - 10} জন` : ''}`,
       draftSubmission: null,
       geminiActive: false,
     };
   }
 
-  if (q.includes('সদস্য') || q.includes('member')) {
+  // 7. Bank Accounts / Deposit info
+  if (q.includes('ব্যাংক') || q.includes('হিসাব') || q.includes('একাউন্ট') || q.includes('bank') || q.includes('টাকা পাঠাব')) {
     return {
-      reply: `👥 সমিতিতে বর্তমানে মোট **${societyContext?.activeMembersCount || 0} জন** সক্রিয় সদস্য রয়েছেন। কোনো নির্দিষ্ট সদস্যের তথ্য বা লেজার স্টেটমেন্ট দেখতে তার নাম বা মেম্বার আইডি লিখুন।`,
+      reply: `🏦 **সোসাইটির অফিশিয়াল ব্যাংক হিসাবসমূহ:**\n\n১. **Sonali Bank PLC**\n   • হিসাব নং: \`0102030405060\`\n   • শাখা: ধানমন্ডি শাখা, ঢাকা\n   • রাউটিং: 200261144\n\n২. **Dutch-Bangla Bank PLC**\n   • হিসাব নং: \`1151200034567\`\n   • শাখা: সাতমসজিদ রোড শাখা, ঢাকা\n\nটাকা জমা দেওয়ার পর জমার স্লিপের ছবি এখানে পাঠালে স্বয়ংক্রিয় ভাউচার তৈরি হবে।`,
       draftSubmission: null,
       geminiActive: false,
     };
   }
 
+  // 8. Total Members
+  if (q.includes('সদস্য') || q.includes('member') || q.includes('কতজন')) {
+    return {
+      reply: `👥 সমিতিতে বর্তমানে মোট **${societyContext?.activeMembersCount || 0} জন** সক্রিয় নিবন্ধিত সদস্য রয়েছেন। কোনো নির্দিষ্ট সদস্যের তথ্য জানতে নাম বা আইডি বলুন।`,
+      draftSubmission: null,
+      geminiActive: false,
+    };
+  }
+
+  // 9. Default polite guidance
   return {
-    reply: `👋 আমি **Somobay AI** — আপনার ডিজিটাল সমবায় সহকারী।\n\nআমি আপনাকে কীভাবে সাহায্য করতে পারি?\n১. ব্যাংক জমা স্লিপের ছবি দিলে আমি অটো চাঁদা এন্ট্রি ড্রাফট তৈরি করতে পারি।\n২. কার কার বকেয়া আছে বা এই মাসের আর্থিক রিপোর্ট জানতে চাইতে পারেন।\n৩. নতুন সদস্যের চাঁদা সমন্বয় বা নোটিশ তৈরি করতে পারি।\n\n📌 *দ্রষ্টব্য: এই সমিতি ১০০% ঋণমুক্ত ও ইসলামিক সমবায় নীতিতে পরিচালিত।*`,
+    reply: `👋 আমি **Somobay AI** — আপনার ডিজিটাল সমবায় ও ভয়েস সহকারী।\n\nআমি আপনাকে কীভাবে সাহায্য করতে পারি?\n• বলুন *"বকেয়া কত আছে?"* — মোট বকেয়ার হিসাব দেখতে\n• বলুন *"পাসবুক দেখাও"* — সঞ্চয় খতিয়ান জানতে\n• বলুন *"ব্যাংক হিসাব"* — চাঁদা জমার অ্যাকাউন্ট নম্বর পেতে\n• ব্যাংক জমা স্লিপের ছবি তুলে দিন — অটো রসিদ এন্ট্রি ড্রাফট প্রস্তুত করতে।\n\n💡 *নোট: আপনি চাইলে উপরে ⚙️ আইকনে আপনার ফ্রি Google Gemini API Key দিয়ে আমাকে ১০০% মানুষের মতো বুদ্ধিমত্তা দিতে পারেন।*`,
     draftSubmission: null,
     geminiActive: false,
   };

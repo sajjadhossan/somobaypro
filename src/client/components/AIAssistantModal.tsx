@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Sparkles, X, Send, Image as ImageIcon, Camera, CheckCircle2, 
   AlertCircle, Building2, User, Calendar, CreditCard, ChevronDown, 
-  RotateCcw, Bot, ShieldCheck, Loader2, Mic, MicOff, Volume2, VolumeX
+  RotateCcw, Bot, ShieldCheck, Loader2, Mic, MicOff, Volume2, VolumeX,
+  GripVertical, KeyRound, Settings, ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,7 +23,7 @@ export const AIAssistantModal: React.FC = () => {
     {
       id: 'welcome',
       sender: 'ai',
-      text: `👋 আসসালামু আলাইকুম ${user?.fullNameBn || 'সম্মানিত সদস্য'}!\n\nআমি **Somobay AI** — আপনার ডিজিটাল সমবায় ও ভয়েস সহকারী।\n\nআপনি আমাকে মুখে বাংলায় **ভয়েস কমান্ড** দিতে পারেন, অথবা ব্যাংকে জমা দেওয়া **রসিদের ছবি (Deposit Slip)** দিলে সরাসরি চাঁদা এন্ট্রি ড্রাফট প্রস্তুত করতে পারি। যেকোনো সদস্যের বকেয়া ও আর্থিক রিপোর্ট সম্পর্কে জানতে পারেন।`,
+      text: `👋 আসসালামু আলাইকুম ${user?.fullNameBn || 'সম্মানিত সদস্য'}!\n\nআমি **Somobay AI** — আপনার ডিজিটাল সমবায় ও স্মার্ট ভয়েস সহকারী।\n\nআপনি আমাকে মুখে বাংলায় **ভয়েস কমান্ড** দিতে পারেন, অথবা ব্যাংকে জমা দেওয়া **রসিদের ছবি (Deposit Slip)** দিলে সরাসরি চাঁদা এন্ট্রি ড্রাফট প্রস্তুত করতে পারি।`,
       timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -35,9 +36,45 @@ export const AIAssistantModal: React.FC = () => {
   const [speechSupported, setSpeechSupported] = useState(true);
   const [currentlySpeakingId, setCurrentlySpeakingId] = useState<string | null>(null);
 
+  // Draggable Floating Button State
+  const [btnPosition, setBtnPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragDataRef = useRef({ startX: 0, startY: 0, initX: 0, initY: 0, moved: false });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Gemini API Key Management State
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [aiStatus, setAiStatus] = useState<{ active: boolean; model: string }>({ active: false, model: 'gemini-2.0-flash' });
+  const [savingKey, setSavingKey] = useState(false);
+
+  // Auto Voice Submit Tracker
+  const lastVoiceTranscriptRef = useRef('');
+  const voiceAutoSpeakRef = useRef(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+
+  // Check AI Status (Gemini active or local)
+  const fetchAiStatus = async () => {
+    try {
+      const token = localStorage.getItem('pkss_token');
+      const res = await fetch('/api/ai/status', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAiStatus(data);
+      }
+    } catch (e) {
+      console.warn('Failed to fetch AI status');
+    }
+  };
+
+  useEffect(() => {
+    fetchAiStatus();
+  }, []);
 
   // Initialize Speech Recognition (Web Speech API)
   useEffect(() => {
@@ -50,6 +87,7 @@ export const AIAssistantModal: React.FC = () => {
 
       recognition.onstart = () => {
         setIsListening(true);
+        lastVoiceTranscriptRef.current = '';
       };
 
       recognition.onresult = (event: any) => {
@@ -57,6 +95,7 @@ export const AIAssistantModal: React.FC = () => {
           .map((result: any) => result[0].transcript)
           .join('');
         setInputMessage(transcript);
+        lastVoiceTranscriptRef.current = transcript;
       };
 
       recognition.onerror = (event: any) => {
@@ -66,6 +105,12 @@ export const AIAssistantModal: React.FC = () => {
 
       recognition.onend = () => {
         setIsListening(false);
+        const spokenText = lastVoiceTranscriptRef.current?.trim();
+        if (spokenText && spokenText.length > 1) {
+          lastVoiceTranscriptRef.current = '';
+          voiceAutoSpeakRef.current = true;
+          handleSendMessage(spokenText);
+        }
       };
 
       recognitionRef.current = recognition;
@@ -79,6 +124,88 @@ export const AIAssistantModal: React.FC = () => {
       }
     };
   }, []);
+
+  // Draggable Pointer Event Handlers
+  const handlePointerDown = (e: React.PointerEvent) => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    dragDataRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: rect.left,
+      initY: rect.top,
+      moved: false,
+    };
+    setIsDragging(true);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragDataRef.current.startX;
+    const dy = e.clientY - dragDataRef.current.startY;
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+      dragDataRef.current.moved = true;
+    }
+    const btnW = buttonRef.current?.offsetWidth || 150;
+    const btnH = buttonRef.current?.offsetHeight || 50;
+    const maxX = window.innerWidth - btnW - 10;
+    const maxY = window.innerHeight - btnH - 10;
+
+    const newX = Math.max(10, Math.min(maxX, dragDataRef.current.initX + dx));
+    const newY = Math.max(10, Math.min(maxY, dragDataRef.current.initY + dy));
+    setBtnPosition({ x: newX, y: newY });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (isDragging) {
+      setIsDragging(false);
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+  };
+
+  const handleButtonClick = () => {
+    if (dragDataRef.current.moved) {
+      dragDataRef.current.moved = false;
+      return;
+    }
+    setIsOpen(!isOpen);
+  };
+
+  const handleSaveApiKey = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!apiKeyInput.trim()) {
+      alert('অনুগ্রহ করে একটি বৈধ Gemini API Key প্রদান করুন।');
+      return;
+    }
+    setSavingKey(true);
+    try {
+      const token = localStorage.getItem('pkss_token');
+      const res = await fetch('/api/ai/key', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ apiKey: apiKeyInput.trim(), model: 'gemini-2.0-flash' }),
+      });
+      if (res.ok) {
+        alert('Google Gemini API Key সফলভাবে সেট করা হয়েছে! এখন এআই সুপার ফাস্ট কাজ করবে।');
+        setShowApiKeyModal(false);
+        setApiKeyInput('');
+        fetchAiStatus();
+      } else {
+        const err = await res.json();
+        alert(err.error || 'API Key সংরক্ষণ ব্যর্থ হয়েছে।');
+      }
+    } catch {
+      alert('সার্ভার যোগাযোগ ত্রুটি।');
+    } finally {
+      setSavingKey(false);
+    }
+  };
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
@@ -177,14 +304,19 @@ export const AIAssistantModal: React.FC = () => {
 
       if (res.ok) {
         const data = await res.json();
+        const aiMsgId = 'ai-' + Date.now();
         const aiMsg: Message = {
-          id: 'ai-' + Date.now(),
+          id: aiMsgId,
           sender: 'ai',
           text: data.reply || 'বিশ্লেষণ সম্পন্ন হয়েছে।',
           timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
           draftSubmission: data.draftSubmission || null,
         };
         setMessages((prev) => [...prev, aiMsg]);
+        if (voiceAutoSpeakRef.current && data.reply) {
+          voiceAutoSpeakRef.current = false;
+          speakMessage(aiMsgId, data.reply);
+        }
       } else {
         const errData = await res.json();
         setMessages((prev) => [
@@ -249,19 +381,31 @@ export const AIAssistantModal: React.FC = () => {
 
   return (
     <>
-      {/* Floating Launcher Button with Voice Indicator */}
+      {/* Floating Draggable Launcher Button with Voice Indicator */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center gap-2 px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:brightness-110 text-white rounded-full shadow-2xl shadow-emerald-950/50 border border-emerald-300/40 transition-all transform hover:scale-105 active:scale-95 group"
-        title="Somobay AI স্মার্ট ভয়েস সহকারী"
+        ref={buttonRef}
+        onClick={handleButtonClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        style={
+          btnPosition
+            ? { left: `${btnPosition.x}px`, top: `${btnPosition.y}px`, right: 'auto', bottom: 'auto' }
+            : undefined
+        }
+        className={`fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center gap-2 px-3 py-2.5 sm:px-3.5 sm:py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:brightness-110 text-white rounded-full shadow-2xl shadow-emerald-950/60 border border-emerald-300/40 select-none touch-none transition-shadow ${
+          isDragging ? 'cursor-grabbing scale-105 shadow-emerald-500/50' : 'cursor-grab'
+        } group`}
+        title="Somobay AI স্মার্ট ভয়েস সহকারী (আঙুল দিয়ে স্ক্রিনের যেকোনো জায়গায় সরিয়ে রাখতে পারবেন)"
       >
+        <GripVertical className="w-4 h-4 text-emerald-200/70 group-hover:text-white" />
         <div className="relative">
-          <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
-          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-300 rounded-full animate-ping" />
+          <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+          <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-emerald-300 rounded-full animate-ping" />
         </div>
-        <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm tracking-tight">
+        <div className="flex items-center gap-1.5 font-bold text-xs tracking-tight">
           <span>{isOpen ? 'সহকারী বন্ধ' : 'Somobay AI'}</span>
-          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-white/20 text-[10px] font-medium text-emerald-100">
+          <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-white/20 text-[10px] font-medium text-emerald-100">
             <Mic className="w-3 h-3 text-emerald-200" />
             <span className="hidden sm:inline">ভয়েস</span>
           </div>
@@ -281,22 +425,41 @@ export const AIAssistantModal: React.FC = () => {
               <div>
                 <div className="flex items-center gap-1.5">
                   <h3 className="font-black text-sm text-white">Somobay AI</h3>
-                  <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 px-1.5 py-0.2 rounded-full font-mono font-bold">
-                    Gemini 2.0
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold border ${
+                    aiStatus.active 
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
+                      : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                  }`}>
+                    {aiStatus.active ? 'Gemini 2.0' : 'লোকাল মোড'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  স্লিপ ওসিআর ও স্মার্ট সমবায় সহকারী
+                  স্লিপ ওসিআর ও স্মার্ট ভয়েস সহকারী
                 </p>
               </div>
             </div>
 
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-1.5 rounded-xl bg-slate-800 hover:bg-red-600/80 text-slate-300 hover:text-white transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setShowApiKeyModal(true)}
+                className={`p-1.5 rounded-xl transition ${
+                  aiStatus.active
+                    ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white'
+                    : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 animate-pulse'
+                }`}
+                title={aiStatus.active ? 'Gemini API কনফিগারেশন' : 'ফ্রি Gemini API Key যুক্ত করুন'}
+              >
+                <KeyRound className="w-4 h-4" />
+              </button>
+
+              <button
+                onClick={() => setIsOpen(false)}
+                className="p-1.5 rounded-xl bg-slate-800 hover:bg-red-600/80 text-slate-300 hover:text-white transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Quick Action Suggestion Chips */}
@@ -529,6 +692,74 @@ export const AIAssistantModal: React.FC = () => {
                 <Send className="w-4 h-4" />
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Google Gemini API Key Setup Modal */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="relative w-full max-w-md bg-white rounded-3xl shadow-2xl p-6 border border-slate-200 animate-in fade-in zoom-in-95">
+            <button
+              onClick={() => setShowApiKeyModal(false)}
+              className="absolute top-5 right-5 p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-amber-500 to-emerald-600 flex items-center justify-center text-white shadow-md">
+                <KeyRound className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">
+                  Google Gemini 2.0 API Key সেটআপ
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  {aiStatus.active ? '✅ বর্তমানে একটি API Key সক্রিয় আছে' : '⚠️ বর্তমানে লোকাল অফলাইন মোডে আছে'}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed mb-4">
+              গুগল জেমিনির অ্যাডভান্সড মাল্টিমোডাল ভিশন এবং সুপারফাস্ট বাংলা ভয়েস এনএলইউ সক্রিয় করতে আপনার ফ্রি API Key প্রদান করুন। এটি সম্পূর্ণ বিনামূল্যে পাওয়া যায়।
+            </p>
+
+            <form onSubmit={handleSaveApiKey} className="space-y-3">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Gemini API Key *
+                </label>
+                <input
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full p-2.5 text-xs bg-slate-50 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[11px] text-emerald-700 font-semibold hover:underline flex items-center gap-1"
+                >
+                  <span>ফ্রি API Key তৈরি করুন</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+
+                <button
+                  type="submit"
+                  disabled={savingKey}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition shadow"
+                >
+                  {savingKey ? 'সংরক্ষণ হচ্ছে...' : 'সংরক্ষণ করুন'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
