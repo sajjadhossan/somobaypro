@@ -36,6 +36,7 @@ import { AIAssistantModal } from './components/AIAssistantModal';
 import { PassbookModal } from './components/PassbookModal';
 import { ShareCertificateModal } from './components/ShareCertificateModal';
 import { SelfKycModal } from './components/SelfKycModal';
+import { PermissionGateModal } from './components/PermissionGateModal';
 import { WifiOff } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -43,6 +44,11 @@ export const App: React.FC = () => {
   const [currentPath, setCurrentPath] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+
+  // App Permission Gate (Prompt before Login on first launch)
+  const [permissionsGranted, setPermissionsGranted] = useState<boolean>(() => {
+    return localStorage.getItem('pkss_permissions_granted') === 'true';
+  });
 
   // Global modals triggered by Voice Commands or Direct Actions
   const [globalPassbookOpen, setGlobalPassbookOpen] = useState(false);
@@ -95,13 +101,16 @@ export const App: React.FC = () => {
     );
   }
 
-  // Not logged in: Show Login, Public Self-Registration, or Public QR Verification
+  // Not logged in: Show Permission Gate first, then Login, Public Self-Registration, or Public QR Verification
   if (!user) {
     if (publicView === 'verify') {
       return <VerifyReceipt />;
     }
     if (publicView === 'register') {
       return <Register onBackToLogin={() => setPublicView('login')} />;
+    }
+    if (!permissionsGranted) {
+      return <PermissionGateModal onComplete={() => setPermissionsGranted(true)} />;
     }
     return (
       <Login
