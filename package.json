@@ -7,9 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "build:client": "vite build",
-    "server": "tsx watch src/server/index.ts",
-    "start": "tsx src/server/index.ts",
-    "seed": "tsx src/server/db/seed.ts"
+    "server": "tsx --experimental-sqlite watch src/server/index.ts",
+    "start": "tsx --experimental-sqlite src/server/index.ts",
+    "seed": "tsx --experimental-sqlite src/server/db/seed.ts"
   },
   "engines": {
     "node": ">=22.5.0"
