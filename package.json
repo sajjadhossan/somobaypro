@@ -1,7 +1,7 @@
 {
-  "name": "digital-society-system",
+  "name": "somobaypro",
   "version": "1.0.0",
-  "description": "Complete Digital Society Management System for Bangladeshi Societies",
+  "description": "SomobayPro - Modern Digital Society Management System for Bangladesh (Strictly No Loans)",
   "type": "module",
   "scripts": {
     "dev": "vite",
