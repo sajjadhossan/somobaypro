@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: somobaypro
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: pnpm install && pnpm run build
+    startCommand: pnpm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: JWT_SECRET
+        generateValue: true
+      - key: STRICT_NO_LOANS
+        value: "true"
