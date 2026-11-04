@@ -185,9 +185,12 @@ router.post('/submissions', authenticate, upload.single('slip'), (req: Request, 
   const { 
     amount, paymentMonths, societyBankAccountId, memberBankName, memberBranchName, 
     depositDate, transactionId, notes,
-    depositorType, depositorName, depositorRelation, depositorNid, depositorMobile, saveDepositor
+    depositorType, depositorName, depositorRelation, depositorNid, depositorMobile, saveDepositor,
+    memberId: targetMemberId
   } = req.body;
-  const memberId = req.user!.memberId;
+
+  const isOfficialUser = ['super_admin', 'treasurer', 'president', 'admin'].includes(req.user!.role);
+  const memberId = (isOfficialUser && targetMemberId) ? targetMemberId.trim() : req.user!.memberId;
 
   if (!amount || !paymentMonths || !societyBankAccountId || !depositDate || !transactionId) {
     return res.status(400).json({ error: 'Amount, payment months, society bank account, deposit date, and bank transaction ID are required.' });
@@ -203,12 +206,15 @@ router.post('/submissions', authenticate, upload.single('slip'), (req: Request, 
     return res.status(400).json({ error: `This transaction ID / slip number has already been submitted under submission ${(existingTx as any).submission_number}.` });
   }
 
+  // Lookup target member
+  const memberRecord = db.prepare(`SELECT full_name_bn, mobile, nid_number FROM members WHERE member_id = ?`).get(memberId) as any;
+
   // Determine effective depositor details
   const effectiveType = depositorType === 'family_member' || depositorType === 'representative' ? depositorType : 'self';
-  const effectiveDepositorName = depositorName?.trim() || req.user!.fullNameBn || memberId;
+  const effectiveDepositorName = depositorName?.trim() || memberRecord?.full_name_bn || req.user!.fullNameBn || memberId;
   const effectiveDepositorRelation = depositorRelation?.trim() || (effectiveType === 'self' ? 'নিজ' : 'পরিবারের সদস্য');
-  const effectiveDepositorNid = depositorNid?.trim() || null;
-  const effectiveDepositorMobile = depositorMobile?.trim() || null;
+  const effectiveDepositorNid = depositorNid?.trim() || (effectiveType === 'self' ? memberRecord?.nid_number : null);
+  const effectiveDepositorMobile = depositorMobile?.trim() || (effectiveType === 'self' ? memberRecord?.mobile : null);
 
   // Auto-save depositor profile if requested or if family member details provided
   if ((saveDepositor === 'true' || saveDepositor === true || saveDepositor === '1') && effectiveDepositorName) {

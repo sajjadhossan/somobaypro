@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   Users, Search, Filter, Plus, CheckCircle, XCircle, 
-  AlertTriangle, Phone, Mail, MapPin, Calendar, FileText, X 
+  AlertTriangle, Phone, Mail, MapPin, Calendar, FileText, X, UserCheck
 } from 'lucide-react';
+import { MemberIdCard } from '../components/MemberIdCard';
 
 export const MembersPage: React.FC = () => {
   const { user, language } = useAuth();
@@ -16,6 +17,7 @@ export const MembersPage: React.FC = () => {
 
   // Modals
   const [selectedMember, setSelectedMember] = useState<any>(null);
+  const [selectedMemberForCard, setSelectedMemberForCard] = useState<any>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // Add Member Form State (Method A: Admin creates member account)
@@ -261,12 +263,21 @@ export const MembersPage: React.FC = () => {
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                      <button
-                        onClick={() => setSelectedMember(m)}
-                        className="px-3 py-1 bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-900 rounded-lg text-xs font-semibold transition"
-                      >
-                        প্রোফাইল
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => setSelectedMemberForCard(m)}
+                          className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold transition"
+                          title="সদস্য ডিজিটাল আইডি কার্ড"
+                        >
+                          আইডি কার্ড
+                        </button>
+                        <button
+                          onClick={() => setSelectedMember(m)}
+                          className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition"
+                        >
+                          প্রোফাইল
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -496,6 +507,24 @@ export const MembersPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Member ID Card Modal */}
+      {selectedMemberForCard && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/75 backdrop-blur-sm overflow-y-auto">
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden my-auto p-4 sm:p-6 animate-in fade-in zoom-in-95">
+            <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-100 print:hidden">
+              <h2 className="text-base font-bold text-slate-900">ডিজিটাল সদস্য পিভিসি আইডি কার্ড</h2>
+              <button
+                onClick={() => setSelectedMemberForCard(null)}
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-red-50 text-slate-500 hover:text-red-600 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <MemberIdCard member={selectedMemberForCard} onClose={() => setSelectedMemberForCard(null)} />
           </div>
         </div>
       )}

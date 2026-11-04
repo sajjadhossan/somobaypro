@@ -24,9 +24,11 @@ export const PaymentsPage: React.FC = () => {
   // Saved Depositors profiles
   const [savedDepositors, setSavedDepositors] = useState<any[]>([]);
   const [selectedSavedDepositorId, setSelectedSavedDepositorId] = useState('self');
+  const [membersList, setMembersList] = useState<any[]>([]);
 
   // Deposit Submission Form
   const [formData, setFormData] = useState({
+    targetMemberId: user?.memberId || '',
     amount: 1000,
     paymentMonths: '2026-03',
     societyBankAccountId: 1,
@@ -46,10 +48,12 @@ export const PaymentsPage: React.FC = () => {
 
   const isOfficial = ['super_admin', 'treasurer', 'president', 'admin'].includes(user?.role || '');
 
-  const fetchDepositors = async () => {
+  const fetchDepositors = async (mId?: string) => {
     try {
       const token = localStorage.getItem('pkss_token');
-      const res = await fetch('/api/payments/depositors', { headers: { Authorization: `Bearer ${token}` } });
+      const target = mId || formData.targetMemberId || user?.memberId;
+      const url = target ? `/api/payments/depositors?memberId=${target}` : '/api/payments/depositors';
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
         setSavedDepositors(data.depositors || []);
@@ -78,6 +82,18 @@ export const PaymentsPage: React.FC = () => {
         setBankAccounts(bData.accounts || []);
       }
 
+      // Members directory for officials
+      if (isOfficial) {
+        const memRes = await fetch('/api/members?limit=200', { headers: { Authorization: `Bearer ${token}` } });
+        if (memRes.ok) {
+          const mData = await memRes.json();
+          setMembersList(mData.members || []);
+          if (mData.members && mData.members.length > 0 && !formData.targetMemberId) {
+            setFormData((prev) => ({ ...prev, targetMemberId: mData.members[0].member_id }));
+          }
+        }
+      }
+
       fetchDepositors();
     } catch (err) {
       console.error(err);
@@ -95,13 +111,14 @@ export const PaymentsPage: React.FC = () => {
     setSelectedSavedDepositorId(val);
 
     if (val === 'self') {
+      const currentMember = membersList.find((m) => m.member_id === formData.targetMemberId);
       setFormData((prev) => ({
         ...prev,
         depositorType: 'self',
-        depositorName: user?.fullNameBn || '',
+        depositorName: currentMember?.full_name_bn || user?.fullNameBn || '',
         depositorRelation: 'নিজ',
         depositorNid: '',
-        depositorMobile: user?.mobile || '',
+        depositorMobile: currentMember?.mobile || user?.mobile || '',
       }));
     } else if (val === 'new_family') {
       setFormData((prev) => ({
@@ -128,7 +145,7 @@ export const PaymentsPage: React.FC = () => {
     }
   };
 
-  // Submit Bank Deposit (Member)
+  // Submit Bank Deposit (Member or Official on behalf of member)
   const handleSubmitDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.transactionId) {
@@ -137,6 +154,9 @@ export const PaymentsPage: React.FC = () => {
     }
 
     const payload = new FormData();
+    if (isOfficial && formData.targetMemberId) {
+      payload.append('memberId', formData.targetMemberId);
+    }
     payload.append('amount', String(formData.amount));
     payload.append('paymentMonths', formData.paymentMonths);
     payload.append('societyBankAccountId', String(formData.societyBankAccountId));
@@ -571,6 +591,45 @@ export const PaymentsPage: React.FC = () => {
             </div>
 
             <form onSubmit={handleSubmitDeposit} className="space-y-3.5 text-xs">
+              {/* Member Selection for Officials */}
+              {isOfficial && (
+                <div className="p-3 bg-amber-50/80 rounded-2xl border border-amber-200/80 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-amber-950 text-xs flex items-center gap-1.5">
+                      <Users className="w-4 h-4 text-amber-700" />
+                      <span>কোন সম্মানিত সদস্যের চাঁদা জমা হচ্ছে? (Select Member) *</span>
+                    </label>
+                    <span className="text-[10px] bg-amber-200/70 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                      অফিসিয়াল এন্ট্রি
+                    </span>
+                  </div>
+                  <select
+                    value={formData.targetMemberId}
+                    onChange={(e) => {
+                      const mId = e.target.value;
+                      const selMember = membersList.find((m) => m.member_id === mId);
+                      setFormData((prev) => ({
+                        ...prev,
+                        targetMemberId: mId,
+                        depositorName: selMember?.full_name_bn || '',
+                        depositorMobile: selMember?.mobile || '',
+                      }));
+                      setSelectedSavedDepositorId('self');
+                      fetchDepositors(mId);
+                    }}
+                    className="w-full p-2.5 bg-white border border-amber-300 rounded-xl font-bold text-slate-900 text-xs shadow-sm focus:ring-2 focus:ring-amber-500"
+                    required
+                  >
+                    <option value="">-- সদস্য নির্বাচন করুন ({membersList.length} জন সদস্য) --</option>
+                    {membersList.map((m) => (
+                      <option key={m.member_id} value={m.member_id}>
+                        {m.full_name_bn} ({m.member_id}) • {m.mobile} • {m.designation || 'সদস্য'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Depositor Information Block */}
               <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">

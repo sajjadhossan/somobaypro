@@ -30,11 +30,27 @@ import { DocumentsPage } from './pages/DocumentsPage';
 import { SupportPage } from './pages/SupportPage';
 import { AuditPage } from './pages/AuditPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { ReportsPage } from './pages/ReportsPage';
+import { IdCardPage } from './pages/IdCardPage';
+import { WifiOff } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { user, isLoading } = useAuth();
   const [currentPath, setCurrentPath] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+
+  React.useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   const [publicView, setPublicView] = useState<'login' | 'register' | 'verify'>(() => {
     const path = window.location.pathname;
     if (path.startsWith('/verify')) return 'verify';
@@ -120,6 +136,10 @@ export const App: React.FC = () => {
         return <AuditPage />;
       case 'settings':
         return <SettingsPage />;
+      case 'reports':
+        return <ReportsPage />;
+      case 'id-card':
+        return <IdCardPage />;
       case 'verify':
         return <VerifyReceipt />;
       default:
@@ -129,6 +149,14 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
+      {/* Offline Status Warning Banner */}
+      {!isOnline && (
+        <div className="bg-amber-600 text-white text-xs font-bold text-center py-1.5 px-4 flex items-center justify-center gap-2 shadow-sm z-50">
+          <WifiOff className="w-4 h-4 animate-pulse" />
+          <span>⚠️ আপনি বর্তমানে অফলাইনে আছেন। পূর্বের সংরক্ষিত ডাটা দেখা যাচ্ছে। ইন্টারনেট সংযোগ পেলে পুনরায় সিংক্রোনাইজ হবে।</span>
+        </div>
+      )}
+
       {/* Top Navbar with Logo, No-Loan Banner, Language Toggle, and Role Switcher */}
       <Navbar
         onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}

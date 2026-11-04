@@ -32,6 +32,26 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
     }
   };
 
+  const handleShareWhatsApp = () => {
+    const url = `${window.location.origin}/verify/${receipt.receipt_number}?token=${receipt.verification_token}`;
+    const text = `*${society?.fullNameBn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\n` +
+      `ডিজিটাল মানি রসিদ নং: ${receipt.receipt_number}\n` +
+      `সদস্য: ${receipt.member_name_bn} (${receipt.member_id})\n` +
+      `জমাদানকারী: ${receipt.depositor_name || receipt.member_name_bn} (${receipt.depositor_relation || 'নিজ'})\n` +
+      `জমার পরিমাণ: ৳${Number(receipt.amount).toLocaleString('bn-BD')} (${receipt.payment_months})\n` +
+      `অনুমোদনের তারিখ: ${receipt.issued_at ? new Date(receipt.issued_at).toLocaleDateString('bn-BD') : ''}\n` +
+      `যাচাই লিংক: ${url}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleShareTelegram = () => {
+    const url = `${window.location.origin}/verify/${receipt.receipt_number}?token=${receipt.verification_token}`;
+    const text = `*${society?.fullNameBn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\n` +
+      `ডিজিটাল মানি রসিদ নং: ${receipt.receipt_number}\n` +
+      `সদস্য: ${receipt.member_name_bn} (${receipt.member_id}) - পরিমাণ: ৳${Number(receipt.amount).toLocaleString('bn-BD')}`;
+    window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank');
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/70 backdrop-blur-sm overflow-y-auto">
       <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95">
@@ -44,20 +64,34 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
               {language === 'bn' ? 'ডিজিটাল অফিশিয়াল রসিদ' : 'Official Digital Receipt'}
             </span>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <button
+              onClick={handleShareWhatsApp}
+              className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1 transition shadow-sm"
+              title="হোয়াটসঅ্যাপে পাঠান"
+            >
+              <span>WhatsApp</span>
+            </button>
+            <button
+              onClick={handleShareTelegram}
+              className="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold flex items-center gap-1 transition shadow-sm"
+              title="টেলিগ্রামে পাঠান"
+            >
+              <span>Telegram</span>
+            </button>
             <button
               onClick={handleShare}
               className="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 transition"
-              title="Share"
+              title="কপি লিংক"
             >
               <Share2 className="w-4 h-4" />
             </button>
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold transition"
             >
               <Printer className="w-4 h-4" />
-              <span>{language === 'bn' ? 'প্রিন্ট / PDF' : 'Print / PDF'}</span>
+              <span>{language === 'bn' ? 'প্রিন্ট' : 'Print'}</span>
             </button>
             <button
               onClick={onClose}

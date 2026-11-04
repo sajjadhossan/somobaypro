@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, Users, CreditCard, CheckSquare, Receipt, 
-  BookOpen, Calendar, Bell, FileText, HelpCircle, Shield, Settings, QrCode, UserCheck
+  BookOpen, Calendar, Bell, FileText, HelpCircle, Shield, Settings, QrCode, UserCheck, BarChart3
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -34,6 +34,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpe
     { id: 'receipts', label: t('receipts'), icon: Receipt, roles: ['super_admin', 'admin', 'treasurer', 'president'] },
     { id: 'accounting', label: t('accounting'), icon: BookOpen, roles: ['super_admin', 'treasurer', 'president', 'advisor'] },
     
+    // Reports & Ledger (All roles)
+    { id: 'reports', label: language === 'bn' ? 'আর্থিক ও বকেয়া রিপোর্ট' : 'Reports & Ledger', icon: BarChart3, roles: ['super_admin', 'admin', 'president', 'general_secretary', 'treasurer', 'advisor', 'general_member'] },
+    
+    // Member ID Card (All roles)
+    { id: 'id-card', label: language === 'bn' ? 'সদস্য ডিজিটাল আইডি' : 'Member ID Card', icon: UserCheck, roles: ['super_admin', 'admin', 'president', 'general_secretary', 'treasurer', 'advisor', 'general_member'] },
+
     // Common Society Management items
     { id: 'meetings', label: t('meetings'), icon: Calendar, roles: ['super_admin', 'general_secretary', 'president', 'admin', 'advisor', 'general_member'] },
     { id: 'notices', label: t('notices'), icon: Bell, roles: ['super_admin', 'admin', 'general_secretary', 'president', 'advisor', 'treasurer', 'general_member'] },

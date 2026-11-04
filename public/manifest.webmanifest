@@ -1,0 +1,20 @@
+{
+  "name": "SomobayPro - ডিজিটাল সমবায় সমিতি ম্যানেজমেন্ট",
+  "short_name": "SomobayPro",
+  "description": "প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড - আধুনিক ডিজিটাল সোসাইটি ম্যানেজমেন্ট সিস্টেম",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#047857",
+  "categories": ["finance", "productivity", "business"],
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

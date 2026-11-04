@@ -142,14 +142,41 @@ export const NoticesPage: React.FC = () => {
                 )}
               </div>
 
-              <button
-                onClick={() => setSelectedNoticeForPrint(n)}
-                className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold border border-emerald-200 transition"
-                title="সমিতির অফিশিয়াল প্যাডে প্রিন্ট করুন"
-              >
-                <Printer className="w-3.5 h-3.5 text-emerald-600" />
-                <span>অফিসিয়াল প্যাডে প্রিন্ট</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    const text = `*${society?.fullNameBn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\n` +
+                      `বিজ্ঞপ্তি নং: ${n.notice_number}\n` +
+                      `বিষয়: ${n.title_bn}\n` +
+                      `তারিখ: ${n.publish_date}\n\n` +
+                      `${n.content_bn}\n\n` +
+                      `অনলাইন পোর্টাল: ${window.location.origin}`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-sm"
+                  title="হোয়াটসঅ্যাপে শেয়ার করুন"
+                >
+                  WhatsApp
+                </button>
+                <button
+                  onClick={() => {
+                    const text = `*${society?.fullNameBn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\nবিজ্ঞপ্তি: ${n.title_bn}\n${n.content_bn}`;
+                    window.open(`https://t.me/share/url?url=${encodeURIComponent(window.location.origin)}&text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-sm"
+                  title="টেলিগ্রামে শেয়ার করুন"
+                >
+                  Telegram
+                </button>
+                <button
+                  onClick={() => setSelectedNoticeForPrint(n)}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold border border-emerald-200 transition"
+                  title="সমিতির অফিশিয়াল প্যাডে প্রিন্ট করুন"
+                >
+                  <Printer className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>প্যাডে প্রিন্ট</span>
+                </button>
+              </div>
             </div>
           </div>
         ))}
@@ -256,13 +283,38 @@ export const NoticesPage: React.FC = () => {
                   অফিসিয়াল বিজ্ঞপ্তির প্যাড প্রিভিউ ও প্রিন্ট
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <button
+                  onClick={() => {
+                    const text = `*${society?.fullNameBn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\n` +
+                      `বিজ্ঞপ্তি নং: ${selectedNoticeForPrint.notice_number}\n` +
+                      `বিষয়: ${selectedNoticeForPrint.title_bn}\n` +
+                      `তারিখ: ${selectedNoticeForPrint.publish_date}\n\n` +
+                      `${selectedNoticeForPrint.content_bn}\n\n` +
+                      `অনলাইন পোর্টাল: ${window.location.origin}`;
+                    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1 transition shadow-sm"
+                  title="হোয়াটসঅ্যাপে পাঠান"
+                >
+                  <span>WhatsApp</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const text = `*${society?.fullNameBn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\nবিজ্ঞপ্তি: ${selectedNoticeForPrint.title_bn}\n${selectedNoticeForPrint.content_bn}`;
+                    window.open(`https://t.me/share/url?url=${encodeURIComponent(window.location.origin)}&text=${encodeURIComponent(text)}`, '_blank');
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold flex items-center gap-1 transition shadow-sm"
+                  title="টেলিগ্রামে পাঠান"
+                >
+                  <span>Telegram</span>
+                </button>
                 <button
                   onClick={() => window.print()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold transition"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-xs font-semibold transition"
                 >
                   <Printer className="w-4 h-4" />
-                  <span>প্রিন্ট / PDF সংরক্ষণ</span>
+                  <span>প্রিন্ট / PDF</span>
                 </button>
                 <button
                   onClick={() => setSelectedNoticeForPrint(null)}
