@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   CheckSquare, Plus, Clock, CheckCircle2, XCircle, 
-  Upload, FileText, Building2, Calendar, QrCode, ShieldCheck, X 
+  Upload, FileText, Building2, Calendar, QrCode, ShieldCheck, X,
+  User, Users 
 } from 'lucide-react';
 import { ReceiptModal } from '../components/ReceiptModal';
 
@@ -20,6 +21,10 @@ export const PaymentsPage: React.FC = () => {
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [generatedReceipt, setGeneratedReceipt] = useState<any>(null);
 
+  // Saved Depositors profiles
+  const [savedDepositors, setSavedDepositors] = useState<any[]>([]);
+  const [selectedSavedDepositorId, setSelectedSavedDepositorId] = useState('self');
+
   // Deposit Submission Form
   const [formData, setFormData] = useState({
     amount: 1000,
@@ -29,11 +34,30 @@ export const PaymentsPage: React.FC = () => {
     memberBranchName: '',
     depositDate: new Date().toISOString().split('T')[0],
     transactionId: '',
+    depositorType: 'self', // 'self' or 'family_member'
+    depositorName: user?.fullNameBn || '',
+    depositorRelation: 'নিজ',
+    depositorNid: '',
+    depositorMobile: user?.mobile || '',
+    saveDepositor: true,
     notes: '',
   });
   const [slipFile, setSlipFile] = useState<File | null>(null);
 
   const isOfficial = ['super_admin', 'treasurer', 'president', 'admin'].includes(user?.role || '');
+
+  const fetchDepositors = async () => {
+    try {
+      const token = localStorage.getItem('pkss_token');
+      const res = await fetch('/api/payments/depositors', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setSavedDepositors(data.depositors || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -53,6 +77,8 @@ export const PaymentsPage: React.FC = () => {
         const bData = await bankRes.json();
         setBankAccounts(bData.accounts || []);
       }
+
+      fetchDepositors();
     } catch (err) {
       console.error(err);
     } finally {
@@ -63,6 +89,44 @@ export const PaymentsPage: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [statusFilter]);
+
+  const handleSelectSavedDepositor = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setSelectedSavedDepositorId(val);
+
+    if (val === 'self') {
+      setFormData((prev) => ({
+        ...prev,
+        depositorType: 'self',
+        depositorName: user?.fullNameBn || '',
+        depositorRelation: 'নিজ',
+        depositorNid: '',
+        depositorMobile: user?.mobile || '',
+      }));
+    } else if (val === 'new_family') {
+      setFormData((prev) => ({
+        ...prev,
+        depositorType: 'family_member',
+        depositorName: '',
+        depositorRelation: 'ভাই',
+        depositorNid: '',
+        depositorMobile: '',
+        saveDepositor: true,
+      }));
+    } else {
+      const found = savedDepositors.find((d) => String(d.id) === val);
+      if (found) {
+        setFormData((prev) => ({
+          ...prev,
+          depositorType: found.depositor_relation === 'নিজ' ? 'self' : 'family_member',
+          depositorName: found.depositor_name,
+          depositorRelation: found.depositor_relation,
+          depositorNid: found.depositor_nid || '',
+          depositorMobile: found.depositor_mobile || '',
+        }));
+      }
+    }
+  };
 
   // Submit Bank Deposit (Member)
   const handleSubmitDeposit = async (e: React.FormEvent) => {
@@ -80,6 +144,12 @@ export const PaymentsPage: React.FC = () => {
     payload.append('memberBranchName', formData.memberBranchName);
     payload.append('depositDate', formData.depositDate);
     payload.append('transactionId', formData.transactionId);
+    payload.append('depositorType', formData.depositorType);
+    payload.append('depositorName', formData.depositorName);
+    payload.append('depositorRelation', formData.depositorRelation);
+    payload.append('depositorNid', formData.depositorNid);
+    payload.append('depositorMobile', formData.depositorMobile);
+    payload.append('saveDepositor', String(formData.saveDepositor));
     payload.append('notes', formData.notes);
     if (slipFile) {
       payload.append('slip', slipFile);
@@ -274,6 +344,12 @@ export const PaymentsPage: React.FC = () => {
                     <td className="p-4">
                       <p className="font-bold text-slate-900">{s.full_name_bn}</p>
                       <p className="text-[10px] text-emerald-700 font-mono">{s.member_id} • {s.submission_number}</p>
+                      {s.depositor_name && s.depositor_name !== s.full_name_bn && (
+                        <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 bg-blue-50 text-blue-800 rounded text-[10px] border border-blue-200 font-semibold">
+                          <User className="w-3 h-3 text-blue-600" />
+                          জমাদানকারী: {s.depositor_name} ({s.depositor_relation || 'প্রতিনিধি'})
+                        </span>
+                      )}
                     </td>
                     <td className="p-4 font-mono font-semibold">{s.payment_months}</td>
                     <td className="p-4">
@@ -342,6 +418,30 @@ export const PaymentsPage: React.FC = () => {
                 <span className="text-slate-500">মেম্বার আইডি:</span>
                 <span className="font-mono font-bold text-emerald-700">{selectedSubmission.member_id}</span>
               </div>
+
+              {/* Depositor details (Who deposited at bank) */}
+              <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 space-y-1 my-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-emerald-950 font-bold flex items-center gap-1.5">
+                    <User className="w-3.5 h-3.5 text-emerald-700" />
+                    ব্যাংকে জমাদানকারী: <strong className="text-slate-900 underline">{selectedSubmission.depositor_name || selectedSubmission.full_name_bn}</strong>
+                  </span>
+                  <span className="text-[10px] bg-white px-2 py-0.5 rounded border border-emerald-300 font-bold text-emerald-800">
+                    {selectedSubmission.depositor_relation || 'নিজ সদস্য'}
+                  </span>
+                </div>
+                {(selectedSubmission.depositor_nid || selectedSubmission.depositor_mobile) && (
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-slate-600 font-mono pt-1 border-t border-emerald-200/60">
+                    {selectedSubmission.depositor_nid && (
+                      <span>এনআইডি/আইডি নং: <strong className="text-slate-800">{selectedSubmission.depositor_nid}</strong></span>
+                    )}
+                    {selectedSubmission.depositor_mobile && (
+                      <span>মোবাইল: <strong className="text-slate-800">{selectedSubmission.depositor_mobile}</strong></span>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="flex justify-between">
                 <span className="text-slate-500">জমার পরিমাণ:</span>
                 <span className="font-mono font-bold text-sm text-emerald-700">
@@ -470,7 +570,154 @@ export const PaymentsPage: React.FC = () => {
               </p>
             </div>
 
-            <form onSubmit={handleSubmitDeposit} className="space-y-3 text-xs">
+            <form onSubmit={handleSubmitDeposit} className="space-y-3.5 text-xs">
+              {/* Depositor Information Block */}
+              <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <label className="font-bold text-emerald-950 text-xs flex items-center gap-1.5">
+                    <User className="w-4 h-4 text-emerald-700" />
+                    <span>ব্যাংকে টাকা কে জমা দিয়েছেন? (Depositor)</span>
+                  </label>
+                  <div className="flex items-center gap-3 text-xs bg-white px-2.5 py-1 rounded-xl border border-emerald-200 self-start sm:self-auto">
+                    <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                      <input
+                        type="radio"
+                        name="depositorType"
+                        checked={formData.depositorType === 'self'}
+                        onChange={() => {
+                          setFormData({
+                            ...formData,
+                            depositorType: 'self',
+                            depositorName: user?.fullNameBn || '',
+                            depositorRelation: 'নিজ',
+                            depositorNid: '',
+                            depositorMobile: user?.mobile || '',
+                          });
+                          setSelectedSavedDepositorId('self');
+                        }}
+                        className="text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span>নিজ সদস্য</span>
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer font-medium text-slate-700">
+                      <input
+                        type="radio"
+                        name="depositorType"
+                        checked={formData.depositorType === 'family_member'}
+                        onChange={() => {
+                          setFormData({
+                            ...formData,
+                            depositorType: 'family_member',
+                            depositorName: '',
+                            depositorRelation: 'ভাই',
+                            depositorNid: '',
+                            depositorMobile: '',
+                            saveDepositor: true,
+                          });
+                          setSelectedSavedDepositorId('new_family');
+                        }}
+                        className="text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span>পরিবারের অন্য সদস্য / প্রতিনিধি</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Quick select from saved depositors */}
+                {savedDepositors.length > 0 && (
+                  <div>
+                    <label className="text-[11px] font-semibold text-slate-600 block mb-1">
+                      সংরক্ষিত জমাদানকারী প্রোফাইল নির্বাচন করুন (Saved Profiles):
+                    </label>
+                    <select
+                      value={selectedSavedDepositorId}
+                      onChange={handleSelectSavedDepositor}
+                      className="w-full p-2 bg-white border border-emerald-300 rounded-xl text-xs font-medium text-slate-800"
+                    >
+                      <option value="self">-- নিজ সদস্য ({user?.fullNameBn}) --</option>
+                      {savedDepositors.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.depositor_name} ({d.depositor_relation}{d.depositor_nid ? ` • NID: ${d.depositor_nid}` : ''})
+                        </option>
+                      ))}
+                      <option value="new_family">+ পরিবারের নতুন জমাদানকারীর তথ্য যুক্ত করুন</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* If Family Member / Representative Deposited */}
+                {formData.depositorType === 'family_member' && (
+                  <div className="space-y-2 pt-2 border-t border-emerald-200/60 animate-in fade-in">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="font-semibold block mb-1">জমাদানকারীর পূর্ণ নাম *</label>
+                        <input
+                          type="text"
+                          value={formData.depositorName}
+                          onChange={(e) => setFormData({ ...formData, depositorName: e.target.value })}
+                          placeholder="e.g. মো: রফিকুল ইসলাম"
+                          className="w-full p-2 bg-white border rounded-xl"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold block mb-1">সদস্যের সাথে সম্পর্ক *</label>
+                        <select
+                          value={formData.depositorRelation}
+                          onChange={(e) => setFormData({ ...formData, depositorRelation: e.target.value })}
+                          className="w-full p-2 bg-white border rounded-xl"
+                          required
+                        >
+                          <option value="ভাই">ভাই (Brother)</option>
+                          <option value="পিতা">পিতা (Father)</option>
+                          <option value="মাতা">মাতা (Mother)</option>
+                          <option value="পুত্র">পুত্র (Son)</option>
+                          <option value="কন্যা">কন্যা (Daughter)</option>
+                          <option value="স্ত্রী">স্ত্রী (Wife)</option>
+                          <option value="স্বামী">স্বামী (Husband)</option>
+                          <option value="বোন">বোন (Sister)</option>
+                          <option value="চাচা/মামা">চাচা / মামা</option>
+                          <option value="অন্যান্য আত্মীয়/প্রতিনিধি">অন্যান্য আত্মীয় বা প্রতিনিধি</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="font-semibold block mb-1">জমাদানকারীর আইডি কার্ড / এনআইডি নম্বর</label>
+                        <input
+                          type="text"
+                          value={formData.depositorNid}
+                          onChange={(e) => setFormData({ ...formData, depositorNid: e.target.value })}
+                          placeholder="এনআইডি / জন্ম নিবন্ধন নম্বর"
+                          className="w-full p-2 bg-white border rounded-xl font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="font-semibold block mb-1">জমাদানকারীর মোবাইল নম্বর</label>
+                        <input
+                          type="text"
+                          value={formData.depositorMobile}
+                          onChange={(e) => setFormData({ ...formData, depositorMobile: e.target.value })}
+                          placeholder="017xxxxxxxx"
+                          className="w-full p-2 bg-white border rounded-xl font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <label className="flex items-center gap-2 pt-1 text-slate-700 font-medium cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.saveDepositor}
+                        onChange={(e) => setFormData({ ...formData, saveDepositor: e.target.checked })}
+                        className="rounded text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span>ভবিষ্যতে ব্যবহারের জন্য এই জমাদানকারীর তথ্য সেভ রাখুন</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="font-semibold block mb-1">জমাকৃত অর্থ (টাকা) *</label>
                 <input
@@ -499,7 +746,7 @@ export const PaymentsPage: React.FC = () => {
                 <select
                   value={formData.societyBankAccountId}
                   onChange={(e) => setFormData({ ...formData, societyBankAccountId: Number(e.target.value) })}
-                  className="w-full p-2 bg-slate-50 border rounded-xl"
+                  className="w-full p-2 bg-slate-50 border rounded-xl font-medium"
                   required
                 >
                   {bankAccounts.map((b) => (
@@ -522,13 +769,13 @@ export const PaymentsPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="font-semibold block mb-1">ট্রানজেকশন/স্লিপ নম্বর *</label>
+                  <label className="font-semibold block mb-1">ব্যাংক ট্রানজেকশন/স্লিপ নম্বর *</label>
                   <input
                     type="text"
                     value={formData.transactionId}
                     onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })}
                     placeholder="e.g. DEP-998822"
-                    className="w-full p-2 bg-slate-50 border rounded-xl font-mono"
+                    className="w-full p-2 bg-slate-50 border rounded-xl font-mono font-bold"
                     required
                   />
                 </div>

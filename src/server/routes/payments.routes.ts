@@ -87,6 +87,60 @@ router.post('/bank-accounts', authenticate, requireRole(['super_admin', 'treasur
   return res.status(201).json({ message: 'Bank account added successfully.' });
 });
 
+// GET /api/payments/depositors (List saved depositors for a member)
+router.get('/depositors', authenticate, (req: Request, res: Response) => {
+  const memberId = req.user!.role === 'general_member' ? req.user!.memberId : ((req.query.memberId as string) || req.user!.memberId);
+  const depositors = db.prepare(`
+    SELECT * FROM member_depositors 
+    WHERE member_id = ? 
+    ORDER BY is_default DESC, last_used_at DESC, id DESC
+  `).all(memberId);
+  return res.json({ depositors });
+});
+
+// POST /api/payments/depositors (Create or update saved depositor profile)
+router.post('/depositors', authenticate, (req: Request, res: Response) => {
+  const { depositorName, depositorRelation, depositorNid, depositorMobile, isDefault } = req.body;
+  const memberId = req.user!.role === 'general_member' ? req.user!.memberId : (req.body.memberId || req.user!.memberId);
+
+  if (!depositorName || !depositorRelation) {
+    return res.status(400).json({ error: 'জমাদানকারীর নাম এবং সম্পর্ক আবশ্যক।' });
+  }
+
+  const existing = db.prepare(`
+    SELECT id FROM member_depositors 
+    WHERE member_id = ? AND depositor_name = ?
+  `).get(memberId, depositorName.trim()) as any;
+
+  if (existing) {
+    db.prepare(`
+      UPDATE member_depositors 
+      SET depositor_relation = ?, depositor_nid = ?, depositor_mobile = ?, is_default = ?, last_used_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(depositorRelation.trim(), depositorNid?.trim() || null, depositorMobile?.trim() || null, isDefault ? 1 : 0, existing.id);
+    return res.json({ message: 'জমাদানকারীর তথ্য আপডেট করা হয়েছে।' });
+  } else {
+    db.prepare(`
+      INSERT INTO member_depositors (member_id, depositor_name, depositor_relation, depositor_nid, depositor_mobile, is_default)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(memberId, depositorName.trim(), depositorRelation.trim(), depositorNid?.trim() || null, depositorMobile?.trim() || null, isDefault ? 1 : 0);
+    return res.status(201).json({ message: 'নতুন জমাদানকারী সেভ করা হয়েছে।' });
+  }
+});
+
+// DELETE /api/payments/depositors/:id
+router.delete('/depositors/:id', authenticate, (req: Request, res: Response) => {
+  const { id } = req.params;
+  const memberId = req.user!.memberId;
+
+  if (req.user!.role === 'general_member') {
+    db.prepare(`DELETE FROM member_depositors WHERE id = ? AND member_id = ?`).run(id, memberId);
+  } else {
+    db.prepare(`DELETE FROM member_depositors WHERE id = ?`).run(id);
+  }
+  return res.json({ message: 'জমাদানকারী মুছে ফেলা হয়েছে।' });
+});
+
 // GET /api/payments/submissions
 router.get('/submissions', authenticate, (req: Request, res: Response) => {
   const { status, memberId } = req.query;
@@ -126,9 +180,13 @@ router.get('/submissions', authenticate, (req: Request, res: Response) => {
   return res.json({ submissions });
 });
 
-// POST /api/payments/submissions (Member submits deposit slip)
+// POST /api/payments/submissions (Member or family representative submits deposit slip)
 router.post('/submissions', authenticate, upload.single('slip'), (req: Request, res: Response) => {
-  const { amount, paymentMonths, societyBankAccountId, memberBankName, memberBranchName, depositDate, transactionId, notes } = req.body;
+  const { 
+    amount, paymentMonths, societyBankAccountId, memberBankName, memberBranchName, 
+    depositDate, transactionId, notes,
+    depositorType, depositorName, depositorRelation, depositorNid, depositorMobile, saveDepositor
+  } = req.body;
   const memberId = req.user!.memberId;
 
   if (!amount || !paymentMonths || !societyBankAccountId || !depositDate || !transactionId) {
@@ -145,6 +203,34 @@ router.post('/submissions', authenticate, upload.single('slip'), (req: Request, 
     return res.status(400).json({ error: `This transaction ID / slip number has already been submitted under submission ${(existingTx as any).submission_number}.` });
   }
 
+  // Determine effective depositor details
+  const effectiveType = depositorType === 'family_member' || depositorType === 'representative' ? depositorType : 'self';
+  const effectiveDepositorName = depositorName?.trim() || req.user!.fullNameBn || memberId;
+  const effectiveDepositorRelation = depositorRelation?.trim() || (effectiveType === 'self' ? 'নিজ' : 'পরিবারের সদস্য');
+  const effectiveDepositorNid = depositorNid?.trim() || null;
+  const effectiveDepositorMobile = depositorMobile?.trim() || null;
+
+  // Auto-save depositor profile if requested or if family member details provided
+  if ((saveDepositor === 'true' || saveDepositor === true || saveDepositor === '1') && effectiveDepositorName) {
+    try {
+      const existingDep = db.prepare(`SELECT id FROM member_depositors WHERE member_id = ? AND depositor_name = ?`).get(memberId, effectiveDepositorName) as any;
+      if (existingDep) {
+        db.prepare(`
+          UPDATE member_depositors 
+          SET depositor_relation = ?, depositor_nid = ?, depositor_mobile = ?, last_used_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `).run(effectiveDepositorRelation, effectiveDepositorNid, effectiveDepositorMobile, existingDep.id);
+      } else {
+        db.prepare(`
+          INSERT INTO member_depositors (member_id, depositor_name, depositor_relation, depositor_nid, depositor_mobile)
+          VALUES (?, ?, ?, ?, ?)
+        `).run(memberId, effectiveDepositorName, effectiveDepositorRelation, effectiveDepositorNid, effectiveDepositorMobile);
+      }
+    } catch (e) {
+      console.error('Error saving depositor profile:', e);
+    }
+  }
+
   const countRow = db.prepare(`SELECT count(*) as count FROM payment_submissions`).get() as { count: number };
   const submissionNumber = `SUB-2026-${String(countRow.count + 1).padStart(5, '0')}`;
   const slipImageUrl = req.file ? `/uploads/${req.file.filename}` : null;
@@ -152,8 +238,10 @@ router.post('/submissions', authenticate, upload.single('slip'), (req: Request, 
   const result = db.prepare(`
     INSERT INTO payment_submissions (
       submission_number, member_id, amount, payment_months, society_bank_account_id,
-      member_bank_name, member_branch_name, deposit_date, transaction_id, slip_image_url, notes, status
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+      member_bank_name, member_branch_name, deposit_date, transaction_id, slip_image_url,
+      depositor_type, depositor_name, depositor_relation, depositor_nid, depositor_mobile,
+      notes, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
   `).run(
     submissionNumber,
     memberId,
@@ -165,14 +253,23 @@ router.post('/submissions', authenticate, upload.single('slip'), (req: Request, 
     depositDate,
     transactionId.trim(),
     slipImageUrl,
+    effectiveType,
+    effectiveDepositorName,
+    effectiveDepositorRelation,
+    effectiveDepositorNid,
+    effectiveDepositorMobile,
     notes || null
   );
 
-  // Notify Treasurer and Cashier
+  // Notify Treasurer and Cashier with depositor information
+  const depositorNotice = effectiveType === 'self' 
+    ? `সদস্য ${req.user!.fullNameBn || memberId}` 
+    : `সদস্য ${req.user!.fullNameBn || memberId}-এর পক্ষে ${effectiveDepositorName} (${effectiveDepositorRelation})`;
+
   NotificationService.broadcast(
     ['treasurer', 'super_admin', 'admin'],
     'নতুন ব্যাংক জমা সাবমিশন',
-    `সদস্য ${req.user!.fullNameBn || memberId} ৳${amount} টাকা জমার তথ্য দাখিল করেছেন (আইডি: ${submissionNumber})। যাচাই করুন।`,
+    `${depositorNotice} ৳${amount} টাকা জমার তথ্য দাখিল করেছেন (আইডি: ${submissionNumber})। যাচাই করুন।`,
     'info',
     '/admin/payments'
   );
@@ -184,7 +281,7 @@ router.post('/submissions', authenticate, upload.single('slip'), (req: Request, 
     action: 'SUBMIT_BANK_DEPOSIT',
     entityType: 'payment_submissions',
     entityId: result.lastInsertRowid,
-    newValues: { submissionNumber, memberId, amount, transactionId },
+    newValues: { submissionNumber, memberId, amount, transactionId, depositorName: effectiveDepositorName, depositorRelation: effectiveDepositorRelation },
   });
 
   return res.status(201).json({
@@ -265,13 +362,19 @@ router.patch('/submissions/:id/approve', authenticate, requireRole(['super_admin
       WHERE id = ?
     `).run(req.user!.memberId, id);
 
-    // 2. Insert Official Digital Receipt
+    // 2. Insert Official Digital Receipt with Depositor details
+    const effectiveDepositorName = submission.depositor_name || submission.full_name_bn;
+    const effectiveDepositorRelation = submission.depositor_relation || 'নিজ';
+    const effectiveDepositorNid = submission.depositor_nid || null;
+    const effectiveDepositorMobile = submission.depositor_mobile || null;
+
     db.prepare(`
       INSERT INTO receipts (
         receipt_number, payment_submission_id, member_id, amount, payment_months,
-        bank_name, account_number, deposit_date, transaction_id, verification_token,
-        qr_code_data, status, issued_by_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?)
+        bank_name, account_number, deposit_date, transaction_id,
+        depositor_name, depositor_relation, depositor_nid, depositor_mobile,
+        verification_token, qr_code_data, status, issued_by_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'valid', ?)
     `).run(
       receiptNumber,
       submission.id,
@@ -282,6 +385,10 @@ router.patch('/submissions/:id/approve', authenticate, requireRole(['super_admin
       submission.society_account_number,
       submission.deposit_date,
       submission.transaction_id,
+      effectiveDepositorName,
+      effectiveDepositorRelation,
+      effectiveDepositorNid,
+      effectiveDepositorMobile,
       verificationToken,
       qrCodeData,
       req.user!.memberId
@@ -329,42 +436,43 @@ router.patch('/submissions/:id/approve', authenticate, requireRole(['super_admin
         remainingAmountToCredit -= monthlyRate;
       }
     }
-
-    // 5. Post Double-Entry Accounting Journal Entry:
-    // Debit: Bank Account (Code 1020)
-    // Credit: Member Subscription Revenue (Code 4010)
-    AccountingService.postJournalEntry({
-      entryDate: submission.deposit_date,
-      referenceType: 'payment',
-      referenceId: receiptNumber,
-      description: `সদস্য চাঁদা প্রাপ্তি - ${submission.full_name_bn} (${submission.member_id}), মাস: ${submission.payment_months}, রসিদ: ${receiptNumber}`,
-      lines: [
-        { accountCode: '1020', debit: submission.amount, credit: 0, description: `ব্যাংক জমা - ${submission.society_bank_name}` },
-        { accountCode: '4010', debit: 0, credit: submission.amount, description: `মাসিক চাঁদা আয় (${submission.member_id})` },
-      ],
-      createdBy: req.user!.memberId,
-    });
-
-    // 6. Notify Member with Receipt Link
-    NotificationService.notifyMember(
-      submission.member_id,
-      'পেমেন্ট অনুমোদিত ও ডিজিটাল রসিদ প্রস্তুত',
-      `আপনার ৳${submission.amount} টাকার জমা অনুমোদিত হয়েছে। ডিজিটাল রসিদ নং: ${receiptNumber}`,
-      'success',
-      `/member/receipts`
-    );
-
-    AuditService.log({
-      userId: req.user!.id,
-      userRole: req.user!.role,
-      action: 'APPROVE_PAYMENT',
-      entityType: 'payment_submissions',
-      entityId: id,
-      newValues: { receiptNumber, amount: submission.amount, memberId: submission.member_id },
-    });
   });
 
+  // Execute database updates
   transaction();
+
+  // 5. Post Double-Entry Accounting Journal Entry (manages its own atomic transaction):
+  // Debit: Bank Account (Code 1020)
+  // Credit: Member Subscription Revenue (Code 4010)
+  AccountingService.postJournalEntry({
+    entryDate: submission.deposit_date,
+    referenceType: 'payment',
+    referenceId: receiptNumber,
+    description: `সদস্য চাঁদা প্রাপ্তি - ${submission.full_name_bn} (${submission.member_id}), মাস: ${submission.payment_months}, রসিদ: ${receiptNumber}`,
+    lines: [
+      { accountCode: '1020', debit: submission.amount, credit: 0, description: `ব্যাংক জমা - ${submission.society_bank_name}` },
+      { accountCode: '4010', debit: 0, credit: submission.amount, description: `মাসিক চাঁদা আয় (${submission.member_id})` },
+    ],
+    createdBy: req.user!.memberId,
+  });
+
+  // 6. Notify Member with Receipt Link
+  NotificationService.notifyMember(
+    submission.member_id,
+    'পেমেন্ট অনুমোদিত ও ডিজিটাল রসিদ প্রস্তুত',
+    `আপনার ৳${submission.amount} টাকার জমা অনুমোদিত হয়েছে। ডিজিটাল রসিদ নং: ${receiptNumber}`,
+    'success',
+    `/member/receipts`
+  );
+
+  AuditService.log({
+    userId: req.user!.id,
+    userRole: req.user!.role,
+    action: 'APPROVE_PAYMENT',
+    entityType: 'payment_submissions',
+    entityId: id,
+    newValues: { receiptNumber, amount: submission.amount, memberId: submission.member_id },
+  });
 
   return res.json({
     message: 'Payment approved successfully. Digital receipt generated and accounting ledger updated.',

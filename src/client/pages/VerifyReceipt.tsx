@@ -166,6 +166,18 @@ export const VerifyReceipt: React.FC<VerifyReceiptProps> = ({ receiptNumberProp 
                     <span className="text-slate-500 font-medium">সদস্য আইডি (সুরক্ষিত):</span>
                     <span className="font-mono font-bold text-emerald-700">{result.memberId}</span>
                   </div>
+                  <div className="py-2 flex justify-between bg-emerald-50/50 px-2 rounded">
+                    <span className="text-emerald-900 font-medium">ব্যাংকে জমাদানকারী:</span>
+                    <span className="font-bold text-slate-900">
+                      {result.depositorName} <span className="text-xs text-emerald-700 font-normal">({result.depositorRelation})</span>
+                    </span>
+                  </div>
+                  {result.depositorNid && (
+                    <div className="py-1 flex justify-between text-[11px] text-slate-500 px-2">
+                      <span>জমাদানকারীর এনআইডি/আইডি:</span>
+                      <span className="font-mono text-slate-700">{result.depositorNid}</span>
+                    </div>
+                  )}
                   <div className="py-2 flex justify-between">
                     <span className="text-slate-500 font-medium">চাঁদার মাস:</span>
                     <span className="font-semibold text-slate-800">{result.paymentMonths}</span>

@@ -172,7 +172,7 @@ export function initDatabase() {
       FOREIGN KEY(member_id) REFERENCES members(member_id) ON DELETE CASCADE
     );
 
-    -- Bank Deposit Submissions (By Members)
+    -- Bank Deposit Submissions (By Members or Family Representatives)
     CREATE TABLE IF NOT EXISTS payment_submissions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       submission_number TEXT UNIQUE NOT NULL,
@@ -185,6 +185,11 @@ export function initDatabase() {
       deposit_date TEXT NOT NULL,
       transaction_id TEXT NOT NULL,
       slip_image_url TEXT,
+      depositor_type TEXT DEFAULT 'self' CHECK (depositor_type IN ('self', 'family_member', 'representative')),
+      depositor_name TEXT,
+      depositor_relation TEXT,
+      depositor_nid TEXT,
+      depositor_mobile TEXT,
       notes TEXT,
       status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'verified_by_treasurer', 'approved', 'rejected')),
       rejection_reason TEXT,
@@ -196,6 +201,20 @@ export function initDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(member_id) REFERENCES members(member_id),
       FOREIGN KEY(society_bank_account_id) REFERENCES bank_accounts(id)
+    );
+
+    -- Saved Depositors Profiles (Family members who deposit on behalf of members)
+    CREATE TABLE IF NOT EXISTS member_depositors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      member_id TEXT NOT NULL,
+      depositor_name TEXT NOT NULL,
+      depositor_relation TEXT NOT NULL,
+      depositor_nid TEXT,
+      depositor_mobile TEXT,
+      is_default INTEGER DEFAULT 0,
+      last_used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(member_id) REFERENCES members(member_id) ON DELETE CASCADE
     );
 
     -- Digital Receipts (Issued strictly upon payment approval)
@@ -210,6 +229,10 @@ export function initDatabase() {
       account_number TEXT NOT NULL,
       deposit_date TEXT NOT NULL,
       transaction_id TEXT NOT NULL,
+      depositor_name TEXT,
+      depositor_relation TEXT,
+      depositor_nid TEXT,
+      depositor_mobile TEXT,
       verification_token TEXT UNIQUE NOT NULL,
       qr_code_data TEXT NOT NULL,
       status TEXT DEFAULT 'valid' CHECK (status IN ('valid', 'cancelled')),
@@ -443,4 +466,25 @@ export function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, is_read);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
   `);
+
+  // Ensure new columns exist on existing databases
+  const migrationAlters = [
+    `ALTER TABLE payment_submissions ADD COLUMN depositor_type TEXT DEFAULT 'self'`,
+    `ALTER TABLE payment_submissions ADD COLUMN depositor_name TEXT`,
+    `ALTER TABLE payment_submissions ADD COLUMN depositor_relation TEXT`,
+    `ALTER TABLE payment_submissions ADD COLUMN depositor_nid TEXT`,
+    `ALTER TABLE payment_submissions ADD COLUMN depositor_mobile TEXT`,
+    `ALTER TABLE receipts ADD COLUMN depositor_name TEXT`,
+    `ALTER TABLE receipts ADD COLUMN depositor_relation TEXT`,
+    `ALTER TABLE receipts ADD COLUMN depositor_nid TEXT`,
+    `ALTER TABLE receipts ADD COLUMN depositor_mobile TEXT`,
+  ];
+
+  for (const alterSql of migrationAlters) {
+    try {
+      db.exec(alterSql);
+    } catch (e) {
+      // Column already exists, safe to ignore
+    }
+  }
 }

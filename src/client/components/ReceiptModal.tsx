@@ -99,11 +99,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
               </div>
             </div>
 
-            {/* Member & Deposit Information Grid */}
+            {/* Member & Depositor & Bank Information Grid */}
             <div className="py-4 space-y-3">
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs sm:text-sm">
                 <div>
-                  <span className="text-slate-500 block text-[11px]">সদস্যের নাম (Member Name):</span>
+                  <span className="text-slate-500 block text-[11px]">মূল সদস্যের নাম (Member Name):</span>
                   <span className="font-bold text-slate-900 text-sm">
                     {receipt.full_name_bn} {receipt.full_name_en ? `(${receipt.full_name_en})` : ''}
                   </span>
@@ -112,17 +112,41 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
                   <span className="text-slate-500 block text-[11px]">সদস্য আইডি (Member ID):</span>
                   <span className="font-mono font-bold text-emerald-800 text-sm">{receipt.member_id}</span>
                 </div>
+
+                {/* Depositor Info (Who physically deposited at bank) */}
+                <div className="sm:col-span-2 p-2.5 bg-emerald-50/70 rounded-lg border border-emerald-200 space-y-1">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
+                    <span className="text-emerald-950 font-bold text-xs flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                      ব্যাংকে জমাদানকারী (Depositor): <span className="text-slate-900 underline font-black">{receipt.depositor_name || receipt.full_name_bn}</span>
+                    </span>
+                    <span className="text-[11px] bg-white px-2 py-0.5 rounded border border-emerald-300 font-semibold text-emerald-800">
+                      সম্পর্ক: {receipt.depositor_relation || 'নিজ (Self)'}
+                    </span>
+                  </div>
+                  {(receipt.depositor_nid || receipt.depositor_mobile) && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[11px] text-slate-600 font-mono pt-1 border-t border-emerald-200/60">
+                      {receipt.depositor_nid && (
+                        <span>এনআইডি / আইডি নং: <strong className="text-slate-800">{receipt.depositor_nid}</strong></span>
+                      )}
+                      {receipt.depositor_mobile && (
+                        <span>মোবাইল: <strong className="text-slate-800">{receipt.depositor_mobile}</strong></span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <span className="text-slate-500 block text-[11px]">চাঁদার মাসসমূহ (Subscription Months):</span>
                   <span className="font-semibold text-slate-800">{receipt.payment_months}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[11px]">জমাকৃত ব্যাংক (Bank Account):</span>
+                  <span className="text-slate-500 block text-[11px]">জমাকৃত ব্যাংক (Society Bank Account):</span>
                   <span className="font-medium text-slate-800">{receipt.bank_name || 'সোনালী ব্যাংক পিএলসি'}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[11px]">ব্যাংক ট্রানজেকশন / ডিপোজিট স্লিপ আইডি:</span>
-                  <span className="font-mono font-semibold text-slate-800">{receipt.transaction_id || 'N/A'}</span>
+                  <span className="font-mono font-semibold text-emerald-800">{receipt.transaction_id || 'N/A'}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[11px]">ব্যাংকে জমার তারিখ (Deposit Date):</span>

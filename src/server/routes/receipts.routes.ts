@@ -15,6 +15,7 @@ router.get('/verify/:receiptNumber', (req: Request, res: Response) => {
   const receipt = db.prepare(`
     SELECT 
       r.receipt_number, r.amount, r.payment_months, r.bank_name, r.deposit_date, r.transaction_id,
+      r.depositor_name, r.depositor_relation, r.depositor_nid, r.depositor_mobile,
       r.status, r.cancelled_reason, r.issued_at, r.verification_token,
       m.member_id, m.full_name_bn, m.full_name_en,
       s.name_bn as society_name_bn, s.name_en as society_name_en, s.reg_no as society_reg_no,
@@ -57,6 +58,10 @@ router.get('/verify/:receiptNumber', (req: Request, res: Response) => {
     memberNameBn: receipt.full_name_bn,
     memberNameEn: receipt.full_name_en,
     memberId: maskedMemberId,
+    depositorName: receipt.depositor_name || receipt.full_name_bn,
+    depositorRelation: receipt.depositor_relation || 'নিজ',
+    depositorNid: receipt.depositor_nid || null,
+    depositorMobile: receipt.depositor_mobile || null,
     amount: receipt.amount,
     paymentMonths: receipt.payment_months,
     bankName: receipt.bank_name,
