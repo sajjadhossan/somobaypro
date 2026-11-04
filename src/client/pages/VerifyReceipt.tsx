@@ -56,7 +56,20 @@ export const VerifyReceipt: React.FC<VerifyReceiptProps> = ({ receiptNumberProp 
 
   const handleManualSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    verifyReceipt(receiptNumber, token);
+    let cleanRcp = receiptNumber.trim();
+    let cleanTok = token.trim();
+
+    // Support pasting full QR scan text or URL
+    const rcpMatch = cleanRcp.match(/RCP-\d{4}-\d+/i);
+    if (rcpMatch) {
+      cleanRcp = rcpMatch[0].toUpperCase();
+    }
+    const tokenMatch = cleanRcp.match(/(?:টোকেন|token|token=)\s*:?\s*([a-f0-9]{16,64})/i);
+    if (tokenMatch) {
+      cleanTok = tokenMatch[1];
+    }
+
+    verifyReceipt(cleanRcp, cleanTok);
   };
 
   return (

@@ -350,15 +350,35 @@ router.patch('/submissions/:id/approve', authenticate, requireRole(['super_admin
   const receiptCountRow = db.prepare(`SELECT count(*) as count FROM receipts`).get() as { count: number };
   const receiptNumber = `RCP-2026-${String(receiptCountRow.count + 1).padStart(6, '0')}`;
   
+  const effectiveDepositorName = submission.depositor_name || submission.full_name_bn;
+  const effectiveDepositorRelation = submission.depositor_relation || 'নিজ';
+  const effectiveDepositorNid = submission.depositor_nid || '';
+  const effectiveDepositorMobile = submission.depositor_mobile || '';
+
   // Cryptographically secure verification token
   const verificationToken = crypto.randomBytes(24).toString('hex');
   const verificationUrl = `${req.protocol}://${req.get('host')}/verify/${receiptNumber}?token=${verificationToken}`;
 
-  // Generate QR code data URL
-  const qrCodeData = await QRCode.toDataURL(verificationUrl, {
+  // Self-Contained Offline Verification Payload (scannable by any mobile camera even without internet)
+  const offlineQrPayload = 
+`🛡️ প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড (REG-DH-2018-0942)
+━━━━━━━━━━━━━━━━━━━━━━
+✅ অফিশিয়াল অনুমোদিত রসিদ (100% Verified)
+📄 রসিদ নং: ${receiptNumber}
+👤 সদস্য: ${submission.full_name_bn} (${submission.member_id})
+👥 জমাদানকারী: ${effectiveDepositorName} (${effectiveDepositorRelation})
+💰 জমার পরিমাণ: ৳${Number(submission.amount).toLocaleString('bn-BD')} (${submission.payment_months})
+🏦 ব্যাংক: ${submission.society_bank_name || 'সোনালী ব্যাংক পিএলসি'}
+📅 জমা তারিখ: ${submission.deposit_date}
+✍️ অনুমোদনকারী: কোষাধ্যক্ষ ও সভাপতি
+🔐 সিকিউরিটি টোকেন: ${verificationToken}
+🌐 অনলাইন সত্যতা যাচাই: ${verificationUrl}`;
+
+  // Generate QR code data URL (Works offline & online)
+  const qrCodeData = await QRCode.toDataURL(offlineQrPayload, {
     errorCorrectionLevel: 'M',
     margin: 1,
-    width: 256,
+    width: 320,
   });
 
   const transaction = db.transaction(() => {
@@ -370,10 +390,6 @@ router.patch('/submissions/:id/approve', authenticate, requireRole(['super_admin
     `).run(req.user!.memberId, id);
 
     // 2. Insert Official Digital Receipt with Depositor details
-    const effectiveDepositorName = submission.depositor_name || submission.full_name_bn;
-    const effectiveDepositorRelation = submission.depositor_relation || 'নিজ';
-    const effectiveDepositorNid = submission.depositor_nid || null;
-    const effectiveDepositorMobile = submission.depositor_mobile || null;
 
     db.prepare(`
       INSERT INTO receipts (
