@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   ShieldAlert, Bell, Globe, LogOut, User as UserIcon, 
-  Menu, X, CheckCircle, ChevronDown, Building2, Plus, Sparkles, PenTool 
+  Menu, X, CheckCircle, ChevronDown, Building2, Plus, Sparkles, PenTool, Wifi, WifiOff 
 } from 'lucide-react';
 import { SignaturePadModal } from './SignaturePadModal';
+import { useRealtime } from '../context/RealtimeContext';
 
 interface NavbarProps {
   onMenuToggle?: () => void;
@@ -13,6 +14,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }) => {
   const { user, society, logout, language, setLanguage, t, quickSwitchRole, refreshUserData } = useAuth();
+  const { isConnected, onlineDevices } = useRealtime();
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
   const [showSocietyHub, setShowSocietyHub] = useState(false);
   const [societiesList, setSocietiesList] = useState<any[]>([]);
@@ -174,6 +176,32 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
 
           {/* Right Controls */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Real-time Multi-Device Sync Indicator */}
+            {user && (
+              <div
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-full border transition-all ${
+                  isConnected
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-sm'
+                    : 'bg-amber-50 text-amber-800 border-amber-300'
+                }`}
+                title={
+                  isConnected
+                    ? `রিয়েল-টাইম ক্লাউড সিঙ্ক চালু আছে (${onlineDevices}টি ডিভাইস সংযুক্ত)`
+                    : 'পুনরায় সংযুক্ত করার চেষ্টা করা হচ্ছে...'
+                }
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                  }`}
+                />
+                <span className="hidden sm:inline">{isConnected ? 'লাইভ সিঙ্ক' : 'পুনঃসংযোগ'}</span>
+                <span className="font-mono text-[10px] bg-white/80 px-1.5 py-0.5 rounded-full border border-slate-200">
+                  {onlineDevices}
+                </span>
+              </div>
+            )}
+
             {/* Quick Role Switcher */}
             {user && (
               <div className="relative">

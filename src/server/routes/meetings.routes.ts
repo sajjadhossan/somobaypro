@@ -3,6 +3,7 @@ import { db } from '../db/index';
 import { authenticate, requireRole } from '../middleware/auth';
 import { AuditService } from '../services/audit.service';
 import { NotificationService } from '../services/notification.service';
+import { RealtimeService } from '../services/realtime.service';
 
 const router = Router();
 
@@ -62,6 +63,17 @@ router.post('/', authenticate, requireRole(['super_admin', 'general_secretary', 
     'info',
     '/meetings'
   );
+
+  // Real-time instant broadcast across all members' devices
+  RealtimeService.broadcast('MEETING_SCHEDULED', {
+    id: result.lastInsertRowid,
+    title,
+    dateTime,
+    location,
+    message: `নতুন সভা আহ্বান করা হয়েছে: ${title}`,
+    timestamp: new Date().toISOString(),
+  });
+  RealtimeService.broadcast('DATA_REFRESH', { entity: 'meetings' });
 
   AuditService.log({
     userId: req.user!.id,

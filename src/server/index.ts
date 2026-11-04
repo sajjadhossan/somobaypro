@@ -20,6 +20,7 @@ import auditRouter from './routes/audit.routes';
 import settingsRouter from './routes/settings.routes';
 import backupRouter from './routes/backup.routes';
 import aiRouter from './routes/ai.routes';
+import realtimeRouter from './routes/realtime.routes';
 import { BackupService } from './services/backup.service';
 
 const app = express();
@@ -53,6 +54,7 @@ app.use('/api/audit', auditRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/backup', backupRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/realtime', realtimeRouter);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

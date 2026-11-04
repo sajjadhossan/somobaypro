@@ -3,6 +3,7 @@ import { db } from '../db/index';
 import { authenticate, requireRole } from '../middleware/auth';
 import { AuditService } from '../services/audit.service';
 import { NotificationService } from '../services/notification.service';
+import { RealtimeService } from '../services/realtime.service';
 
 const router = Router();
 
@@ -69,6 +70,17 @@ router.post('/', authenticate, requireRole(['super_admin', 'general_secretary', 
     priority === 'urgent' ? 'urgent' : 'info',
     '/notices'
   );
+
+  // Real-time instant broadcast across all members' connected devices
+  RealtimeService.broadcast('NOTICE_PUBLISHED', {
+    id: result.lastInsertRowid,
+    noticeNumber,
+    title: titleBn,
+    priority,
+    message: `নতুন বিজ্ঞপ্তি প্রকাশিত হয়েছে: ${titleBn}`,
+    timestamp: new Date().toISOString(),
+  });
+  RealtimeService.broadcast('DATA_REFRESH', { entity: 'notices' });
 
   AuditService.log({
     userId: req.user!.id,

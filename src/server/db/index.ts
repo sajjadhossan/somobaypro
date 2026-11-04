@@ -10,9 +10,11 @@ if (!fs.existsSync(dbDir)) {
 const dbPath = path.join(dbDir, 'society.db');
 const rawDb = new DatabaseSync(dbPath);
 
-// Enable Foreign Keys and Write-Ahead Logging
+// Enable Foreign Keys, Write-Ahead Logging, and Busy Timeout for high multi-user concurrency
 rawDb.exec('PRAGMA journal_mode = WAL;');
 rawDb.exec('PRAGMA foreign_keys = ON;');
+rawDb.exec('PRAGMA busy_timeout = 5000;');
+rawDb.exec('PRAGMA synchronous = NORMAL;');
 
 // Helper to provide transaction function similar to better-sqlite3
 (rawDb as any).transaction = function (fn: Function) {

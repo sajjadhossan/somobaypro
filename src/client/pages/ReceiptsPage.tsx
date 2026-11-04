@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useRealtimeRefresh } from '../context/RealtimeContext';
 import { 
   Receipt, Search, QrCode, Printer, CheckCircle2, 
   XCircle, AlertTriangle, ShieldCheck, Share2, X 
@@ -43,6 +44,13 @@ export const ReceiptsPage: React.FC = () => {
   useEffect(() => {
     fetchReceipts();
   }, [statusFilter]);
+
+  // Real-time automatic data refresh
+  useRealtimeRefresh((detail) => {
+    if (!detail?.entity || ['payments', 'receipts'].includes(detail.entity)) {
+      fetchReceipts();
+    }
+  });
 
   const handleCancelReceipt = async () => {
     if (!cancelReason.trim()) {

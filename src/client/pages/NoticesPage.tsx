@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useRealtimeRefresh } from '../context/RealtimeContext';
 import { Bell, Plus, Calendar, AlertCircle, FileText, CheckCircle2, X, Printer, ShieldCheck } from 'lucide-react';
 import { SocietyPad } from '../components/SocietyPad';
 
@@ -40,6 +41,13 @@ export const NoticesPage: React.FC = () => {
   useEffect(() => {
     fetchNotices();
   }, []);
+
+  // Real-time automatic data refresh across devices
+  useRealtimeRefresh((detail) => {
+    if (!detail?.entity || detail.entity === 'notices') {
+      fetchNotices();
+    }
+  });
 
   const handleCreateNotice = async (e: React.FormEvent) => {
     e.preventDefault();

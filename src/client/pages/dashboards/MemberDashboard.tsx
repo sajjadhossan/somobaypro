@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useRealtime, useRealtimeRefresh } from '../../context/RealtimeContext';
 import { 
   CreditCard, CheckSquare, Receipt, AlertCircle, 
-  CheckCircle2, Clock, QrCode, ArrowRight, UserCheck, ShieldCheck, Download 
+  CheckCircle2, Clock, QrCode, ArrowRight, UserCheck, ShieldCheck, Download, Wifi, RefreshCw, IdCard
 } from 'lucide-react';
 import { ReceiptModal } from '../../components/ReceiptModal';
 
@@ -12,6 +13,7 @@ interface MemberDashboardProps {
 
 export const MemberDashboard: React.FC<MemberDashboardProps> = ({ onNavigate }) => {
   const { user, society, language } = useAuth();
+  const { isConnected, onlineDevices } = useRealtime();
   const [subData, setSubData] = useState<any>(null);
   const [recentReceipts, setRecentReceipts] = useState<any[]>([]);
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
@@ -48,6 +50,13 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ onNavigate }) 
     fetchMemberDashboard();
   }, []);
 
+  // Instant real-time multi-device sync: auto re-fetch whenever any payment/receipt changes
+  useRealtimeRefresh((detail) => {
+    if (!detail?.entity || ['payments', 'submissions', 'receipts', 'dues'].includes(detail.entity)) {
+      fetchMemberDashboard();
+    }
+  });
+
   return (
     <div className="space-y-6">
       {/* Member Profile Identity Card */}
@@ -58,9 +67,25 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ onNavigate }) 
               {user?.fullNameBn.slice(0, 1)}
             </div>
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[11px] font-semibold mb-1">
-                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                <span>{language === 'bn' ? 'সক্রিয় সদস্য (Active Member)' : 'Active Member'}</span>
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[11px] font-semibold">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  <span>{language === 'bn' ? 'সক্রিয় সদস্য (Active Member)' : 'Active Member'}</span>
+                </div>
+                <div
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                    isConnected
+                      ? 'bg-emerald-400/10 text-emerald-300 border-emerald-400/30'
+                      : 'bg-amber-400/10 text-amber-300 border-amber-400/30'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                    }`}
+                  />
+                  <span>{isConnected ? `লাইভ ক্লাউড সিঙ্ক (${onlineDevices} ডিভাইস)` : 'পুনঃসংযোগ...'}</span>
+                </div>
               </div>
               <h1 className="text-xl sm:text-2xl font-black tracking-tight">
                 {language === 'bn' ? user?.fullNameBn : user?.fullNameEn || user?.fullNameBn}
@@ -71,14 +96,23 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ onNavigate }) 
             </div>
           </div>
 
-          {/* Quick Submit Action Button */}
-          <button
-            onClick={() => onNavigate('submit-deposit')}
-            className="w-full sm:w-auto px-5 py-3 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 rounded-2xl font-bold text-xs sm:text-sm shadow-lg shadow-emerald-950/30 flex items-center justify-center gap-2 transition"
-          >
-            <CheckSquare className="w-4 h-4" />
-            <span>{language === 'bn' ? 'ব্যাংক জমা তথ্য দাখিল করুন' : 'Submit Bank Deposit'}</span>
-          </button>
+          {/* Quick Action Buttons */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+            <button
+              onClick={() => onNavigate('id-card')}
+              className="flex-1 sm:flex-initial px-4 py-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-bold text-xs sm:text-sm border border-white/20 shadow-md backdrop-blur-md flex items-center justify-center gap-2 transition"
+            >
+              <IdCard className="w-4 h-4 text-emerald-300" />
+              <span>{language === 'bn' ? 'আইডি কার্ড' : 'ID Card'}</span>
+            </button>
+            <button
+              onClick={() => onNavigate('submit-deposit')}
+              className="flex-1 sm:flex-initial px-5 py-3 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-slate-950 rounded-2xl font-bold text-xs sm:text-sm shadow-lg shadow-emerald-950/30 flex items-center justify-center gap-2 transition"
+            >
+              <CheckSquare className="w-4 h-4" />
+              <span>{language === 'bn' ? 'ব্যাংক জমা দাখিল' : 'Submit Bank Deposit'}</span>
+            </button>
+          </div>
         </div>
       </div>
 

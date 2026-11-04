@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useRealtimeRefresh } from '../context/RealtimeContext';
 import { 
   CheckSquare, Plus, Clock, CheckCircle2, XCircle, 
   Upload, FileText, Building2, Calendar, QrCode, ShieldCheck, X,
@@ -105,6 +106,13 @@ export const PaymentsPage: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, [statusFilter]);
+
+  // Real-time automatic data refresh across all devices
+  useRealtimeRefresh((detail) => {
+    if (!detail?.entity || ['payments', 'submissions', 'receipts'].includes(detail.entity)) {
+      fetchData();
+    }
+  });
 
   const handleSelectSavedDepositor = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;

@@ -9,6 +9,7 @@ import { AccountingService } from '../services/accounting.service';
 import { AuditService } from '../services/audit.service';
 import { NotificationService } from '../services/notification.service';
 import { BackupService } from '../services/backup.service';
+import { RealtimeService } from '../services/realtime.service';
 
 const router = Router();
 
@@ -281,6 +282,20 @@ router.post('/submissions', authenticate, upload.single('slip'), (req: Request, 
     '/admin/payments'
   );
 
+  // Instant real-time multi-device sync
+  RealtimeService.sendToRole(
+    ['treasurer', 'super_admin', 'admin', 'president'],
+    'PAYMENT_SUBMITTED',
+    {
+      submissionNumber,
+      memberId,
+      amount: Number(amount),
+      depositorName: effectiveDepositorName,
+      message: `${depositorNotice} ৳${amount} টাকা জমার তথ্য দাখিল করেছেন (আইডি: ${submissionNumber})।`,
+    }
+  );
+  RealtimeService.broadcast('DATA_REFRESH', { entity: 'submissions', memberId });
+
   AuditService.log({
     userId: req.user!.id,
     userRole: req.user!.role,
@@ -323,6 +338,9 @@ router.patch('/submissions/:id/verify', authenticate, requireRole(['super_admin'
     entityType: 'payment_submissions',
     entityId: id,
   });
+
+  // Real-time notification & multi-device sync
+  RealtimeService.broadcast('DATA_REFRESH', { entity: 'submissions', id });
 
   return res.json({ message: 'Deposit slip verified successfully. Ready for final approval.' });
 });
@@ -488,6 +506,16 @@ router.patch('/submissions/:id/approve', authenticate, requireRole(['super_admin
     `/member/receipts`
   );
 
+  // Real-time instant notification to member's phone & all admin devices
+  RealtimeService.sendToUser(submission.member_id, 'PAYMENT_APPROVED', {
+    receiptNumber,
+    amount: submission.amount,
+    title: 'পেমেন্ট অনুমোদিত হয়েছে! 🎉',
+    message: `আপনার ৳${submission.amount} টাকার জমা অনুমোদিত হয়েছে। ডিজিটাল রসিদ নং: ${receiptNumber}`,
+    timestamp: new Date().toISOString(),
+  });
+  RealtimeService.broadcast('DATA_REFRESH', { entity: 'payments', receiptNumber, memberId: submission.member_id });
+
   AuditService.log({
     userId: req.user!.id,
     userRole: req.user!.role,
@@ -538,6 +566,15 @@ router.patch('/submissions/:id/reject', authenticate, requireRole(['super_admin'
     'warning',
     '/member/payments'
   );
+
+  // Real-time notification to member
+  RealtimeService.sendToUser(submission.member_id, 'PAYMENT_REJECTED', {
+    submissionNumber: submission.submission_number,
+    reason,
+    title: 'পেমেন্ট সাবমিশন বাতিল করা হয়েছে',
+    message: `আপনার জমা সাবমিশন (${submission.submission_number}) বাতিল করা হয়েছে। কারণ: ${reason}`,
+  });
+  RealtimeService.broadcast('DATA_REFRESH', { entity: 'submissions', memberId: submission.member_id });
 
   AuditService.log({
     userId: req.user!.id,
