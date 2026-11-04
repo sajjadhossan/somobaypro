@@ -45,16 +45,28 @@ export const MembersPage: React.FC = () => {
     initialPassword: '',
   });
 
+  const [canCurrentUserAddMembers, setCanCurrentUserAddMembers] = useState(false);
+
   const fetchMembers = async () => {
     setLoading(true);
     try {
+      const token = localStorage.getItem('pkss_token');
+      // Fetch dynamic member creation permissions
+      const permRes = await fetch('/api/settings/permissions', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (permRes.ok) {
+        const pData = await permRes.json();
+        setCanCurrentUserAddMembers(pData.canCurrentUserAddMembers);
+      }
+
       let url = `/api/members?`;
       if (search) url += `search=${encodeURIComponent(search)}&`;
       if (statusFilter) url += `status=${encodeURIComponent(statusFilter)}&`;
       if (typeFilter) url += `type=${encodeURIComponent(typeFilter)}&`;
 
       const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('pkss_token')}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
@@ -137,13 +149,13 @@ export const MembersPage: React.FC = () => {
           </p>
         </div>
 
-        {canManage && (
+        {canCurrentUserAddMembers && (
           <button
             onClick={() => setIsAddModalOpen(true)}
             className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-emerald-700/20 flex items-center gap-1.5 transition self-start sm:self-auto"
           >
             <Plus className="w-4 h-4" />
-            <span>{language === 'bn' ? 'নতুন সদস্য যোগ করুন (পদ্ধতি ক)' : 'Add New Member'}</span>
+            <span>{language === 'bn' ? 'নতুন সদস্য যোগ করুন (অনুমোদিত)' : 'Add New Member'}</span>
           </button>
         )}
       </div>

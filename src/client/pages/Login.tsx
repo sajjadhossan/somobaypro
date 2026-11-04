@@ -62,12 +62,12 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-slate-900 to-slate-950 flex flex-col justify-between p-4 sm:p-6 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 flex flex-col justify-between p-4 sm:p-6 md:p-8">
       {/* Top Header */}
       <div className="max-w-md mx-auto w-full flex items-center justify-between text-xs text-emerald-300">
-        <div className="flex items-center gap-1.5 font-semibold">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span>নিরাপদ সোসাইটি লগইন</span>
+        <div className="flex items-center gap-2 font-bold tracking-tight">
+          <span className="text-white text-sm font-black">Somobay<span className="text-emerald-400">Pro</span></span>
+          <span className="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px]">Cloud OS</span>
         </div>
         <button
           onClick={() => setLanguage(language === 'bn' ? 'en' : 'bn')}
@@ -80,23 +80,34 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
       {/* Main Card */}
       <div className="max-w-md mx-auto w-full my-6 bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100">
         
-        {/* Banner with Society Logo & Identity */}
-        <div className="bg-gradient-to-r from-emerald-700 to-teal-800 p-6 text-white text-center relative">
-          <div className="w-20 h-20 mx-auto mb-3 bg-white p-2 rounded-2xl shadow-lg flex items-center justify-center">
+        {/* Banner with SomobayPro Platform Logo + Active Society Profile */}
+        <div className="bg-gradient-to-r from-emerald-800 to-slate-900 p-6 text-white text-center relative">
+          <div className="w-16 h-16 mx-auto mb-2 bg-white p-2 rounded-2xl shadow-lg flex items-center justify-center">
             <img
-              src={society?.logo_url || '/logo.svg'}
-              alt="Logo"
+              src="/somobaypro-logo.svg"
+              alt="SomobayPro"
               className="w-full h-full object-contain"
             />
           </div>
-          <h2 className="text-xl font-bold tracking-tight">
-            {society?.name_bn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}
+          
+          <h2 className="text-xl font-black tracking-tight font-sans">
+            Somobay<span className="text-emerald-400">Pro</span>
           </h2>
-          <p className="text-xs text-emerald-100 mt-1">
-            {t('tagline')} • {society?.reg_no || 'নিবন্ধিত সমবায়'}
+          <p className="text-xs text-emerald-200">
+            স্মার্ট সমবায় ও ডিজিটাল সোসাইটি অপারেটিং সিস্টেম
           </p>
 
-          <div className="mt-3 inline-block bg-amber-400 text-slate-950 font-bold px-3 py-0.5 rounded-full text-[10px] uppercase tracking-wide">
+          <div className="mt-3 bg-white/10 backdrop-blur-sm p-2 rounded-xl border border-white/10 text-left flex items-center gap-2.5">
+            <Building2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="overflow-hidden">
+              <span className="text-[10px] text-emerald-300 font-semibold block uppercase">সোসাইটি প্রোফাইল:</span>
+              <p className="text-xs font-bold text-white truncate">
+                {society?.name_bn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-2.5 inline-block bg-amber-400 text-slate-950 font-bold px-3 py-0.5 rounded-full text-[10px] uppercase tracking-wide">
             কোনো প্রকার ঋণ প্রদান করা হয় না
           </div>
         </div>
@@ -122,7 +133,7 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="e.g. 01711000007 বা SOC-2026-0007"
+                  placeholder="e.g. 01711000001 বা 01711000007"
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
                   required
                 />
@@ -208,7 +219,7 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
               className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100 text-emerald-800 font-semibold flex items-center justify-center gap-1.5 transition"
             >
               <UserPlus className="w-4 h-4 text-emerald-600" />
-              <span>{language === 'bn' ? 'নতুন সদস্য আবেদন' : 'Self-Register'}</span>
+              <span>{language === 'bn' ? 'অনলাইন সদস্য আবেদন' : 'Self-Register'}</span>
             </button>
             <button
               onClick={onNavigateVerify}
@@ -223,9 +234,9 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
 
       {/* Footer */}
       <div className="text-center text-xs text-slate-400 pb-2">
-        <p>© 2026 {society?.name_bn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}</p>
+        <p>© 2026 SomobayPro • ক্লাউড সোসাইটি অপারেটিং প্ল্যাটফর্ম</p>
         <p className="text-[11px] text-slate-500 mt-0.5">
-          নিরাপদ ডাবল-এন্ট্রি একাউন্টিং ও ডিজিটাল সোসাইটি সিস্টেম
+          নিরাপদ ডাবল-এন্ট্রি একাউন্টিং ও ডিজিটাল রসিদ সিস্টেম
         </p>
       </div>
     </div>

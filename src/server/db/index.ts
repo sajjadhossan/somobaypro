@@ -61,8 +61,28 @@ export function initDatabase() {
       monthly_subscription_default REAL DEFAULT 1000,
       membership_fee_default REAL DEFAULT 500,
       approval_workflow TEXT DEFAULT 'treasurer_only',
+      member_creation_allowed_roles TEXT DEFAULT '["super_admin", "admin", "president", "treasurer"]',
       self_registration_enabled INTEGER DEFAULT 1,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    -- Multi-Society Profiles Hub (Managed by Super Admin)
+    CREATE TABLE IF NOT EXISTS societies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name_bn TEXT NOT NULL,
+      name_en TEXT NOT NULL,
+      short_name TEXT,
+      reg_no TEXT,
+      address TEXT,
+      district TEXT,
+      upazila TEXT,
+      phone TEXT,
+      email TEXT,
+      logo_url TEXT,
+      monthly_subscription_default REAL DEFAULT 1000,
+      member_creation_allowed_roles TEXT DEFAULT '["super_admin", "admin", "president", "treasurer"]',
+      is_active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     -- Users Table (Authentication and RBAC)

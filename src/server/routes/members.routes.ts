@@ -103,8 +103,25 @@ router.get('/:memberId', authenticate, (req: Request, res: Response) => {
   });
 });
 
-// POST /api/members (Method A: Admin creates member account)
-router.post('/', authenticate, requireRole(['super_admin', 'admin', 'general_secretary']), (req: Request, res: Response) => {
+// POST /api/members (Dynamic Permission: Super Admin configures authorized roles: Admin, President, Secretary, Treasurer)
+router.post('/', authenticate, (req: Request, res: Response) => {
+  // Check dynamic role permission configured by Super Admin
+  const settings = db.prepare(`SELECT member_creation_allowed_roles FROM society_settings WHERE id = 1`).get() as any;
+  let allowedRoles: string[] = ['super_admin', 'admin', 'president', 'treasurer'];
+  try {
+    if (settings?.member_creation_allowed_roles) {
+      allowedRoles = JSON.parse(settings.member_creation_allowed_roles);
+    }
+  } catch {
+    allowedRoles = ['super_admin'];
+  }
+
+  // Super Admin always has full access
+  if (req.user!.role !== 'super_admin' && !allowedRoles.includes(req.user!.role)) {
+    return res.status(403).json({
+      error: `অনুমতি নেই। নতুন সদস্য যুক্ত করার ক্ষমতা শুধুমাত্র সুপার এডমিন কর্তৃক অনুমোদিত কর্মকর্তাদের (${allowedRoles.join(', ')}) হাতে ন্যস্ত।`,
+    });
+  }
   const {
     fullNameBn,
     fullNameEn,

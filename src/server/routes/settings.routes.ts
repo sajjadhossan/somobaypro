@@ -7,13 +7,193 @@ import { AuditService } from '../services/audit.service';
 
 const router = Router();
 
-// GET /api/settings (Society Profile & Branding)
+// GET /api/settings (Active Society Profile & Branding)
 router.get('/', (req: Request, res: Response) => {
   const settings = db.prepare(`SELECT * FROM society_settings WHERE id = 1`).get();
   return res.json({ settings });
 });
 
-// PUT /api/settings (Update Society Profile - Super Admin Only)
+// GET /api/settings/permissions (Check who is allowed to create members)
+router.get('/permissions', authenticate, (req: Request, res: Response) => {
+  const settings = db.prepare(`SELECT member_creation_allowed_roles FROM society_settings WHERE id = 1`).get() as any;
+  let allowedRoles: string[] = ['super_admin', 'admin', 'president', 'treasurer'];
+  try {
+    if (settings?.member_creation_allowed_roles) {
+      allowedRoles = JSON.parse(settings.member_creation_allowed_roles);
+    }
+  } catch {
+    allowedRoles = ['super_admin'];
+  }
+
+  const allAvailableRoles = [
+    { key: 'super_admin', labelBn: 'সুপার এডমিন (সর্বদা অনুমোদিত)', labelEn: 'Super Admin', locked: true },
+    { key: 'admin', labelBn: 'এডমিন (সিস্টেম প্রশাসক)', labelEn: 'Admin', locked: false },
+    { key: 'president', labelBn: 'সভাপতি (কার্যনির্বাহী পরিষদ)', labelEn: 'President', locked: false },
+    { key: 'general_secretary', labelBn: 'সাধারণ সম্পাদক (সচিবালয়)', labelEn: 'General Secretary', locked: false },
+    { key: 'treasurer', labelBn: 'কোষাধ্যক্ষ / ক্যাশিয়ার (অর্থ বিভাগ)', labelEn: 'Treasurer / Cashier', locked: false },
+  ];
+
+  return res.json({
+    allowedRoles,
+    allAvailableRoles,
+    canCurrentUserAddMembers: req.user!.role === 'super_admin' || allowedRoles.includes(req.user!.role),
+  });
+});
+
+// PUT /api/settings/permissions (Super Admin updates member creation permissions)
+router.put('/permissions', authenticate, requireRole(['super_admin']), (req: Request, res: Response) => {
+  const { allowedRoles } = req.body;
+
+  if (!Array.isArray(allowedRoles)) {
+    return res.status(400).json({ error: 'allowedRoles must be an array of role keys.' });
+  }
+
+  // Ensure super_admin is always included
+  const finalRoles = Array.from(new Set(['super_admin', ...allowedRoles]));
+
+  db.prepare(`
+    UPDATE society_settings 
+    SET member_creation_allowed_roles = ?, updated_at = CURRENT_TIMESTAMP 
+    WHERE id = 1
+  `).run(JSON.stringify(finalRoles));
+
+  // Sync with societies table
+  try {
+    db.prepare(`
+      UPDATE societies 
+      SET member_creation_allowed_roles = ? 
+      WHERE id = 1
+    `).run(JSON.stringify(finalRoles));
+  } catch {}
+
+  AuditService.log({
+    userId: req.user!.id,
+    userRole: req.user!.role,
+    userName: req.user!.fullNameBn,
+    action: 'UPDATE_MEMBER_CREATION_PERMISSIONS',
+    entityType: 'society_settings',
+    entityId: 1,
+    newValues: { allowedRoles: finalRoles },
+  });
+
+  return res.json({
+    message: 'সদস্য যুক্ত করার পারমিশন সফলভাবে আপডেট করা হয়েছে।',
+    allowedRoles: finalRoles,
+  });
+});
+
+// GET /api/settings/societies (List all societies managed in SomobayPro)
+router.get('/societies', authenticate, requireRole(['super_admin', 'admin', 'president']), (req: Request, res: Response) => {
+  const societies = db.prepare(`SELECT * FROM societies ORDER BY id ASC`).all();
+  return res.json({ societies });
+});
+
+// POST /api/settings/societies (Super Admin creates a new society profile)
+router.post('/societies', authenticate, requireRole(['super_admin']), (req: Request, res: Response) => {
+  const {
+    nameBn,
+    nameEn,
+    shortName,
+    regNo,
+    address,
+    district,
+    upazila,
+    phone,
+    email,
+    monthlySubscriptionDefault = 1000,
+  } = req.body;
+
+  if (!nameBn) {
+    return res.status(400).json({ error: 'সমিতির পূর্ণ নাম (বাংলায়) আবশ্যক।' });
+  }
+
+  const result = db.prepare(`
+    INSERT INTO societies (
+      name_bn, name_en, short_name, reg_no, address, district, upazila, phone, email, monthly_subscription_default
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    nameBn,
+    nameEn || nameBn,
+    shortName || 'SOMOBAY',
+    regNo || '',
+    address || '',
+    district || 'ঢাকা',
+    upazila || '',
+    phone || '',
+    email || '',
+    Number(monthlySubscriptionDefault) || 1000
+  );
+
+  AuditService.log({
+    userId: req.user!.id,
+    userRole: req.user!.role,
+    action: 'CREATE_SOCIETY_PROFILE',
+    entityType: 'societies',
+    entityId: result.lastInsertRowid,
+    newValues: { nameBn, regNo },
+  });
+
+  return res.status(201).json({
+    message: 'নতুন সোসাইটি প্রোফাইল সফলভাবে তৈরি হয়েছে।',
+    societyId: result.lastInsertRowid,
+  });
+});
+
+// POST /api/settings/societies/:id/switch (Switch active society profile)
+router.post('/societies/:id/switch', authenticate, requireRole(['super_admin']), (req: Request, res: Response) => {
+  const { id } = req.params;
+  const target = db.prepare(`SELECT * FROM societies WHERE id = ?`).get(id) as any;
+
+  if (!target) {
+    return res.status(404).json({ error: 'সোসাইটি প্রোফাইল পাওয়া যায়নি।' });
+  }
+
+  // Update active society_settings (id=1) with target profile info
+  db.prepare(`
+    UPDATE society_settings SET
+      name_bn = ?,
+      name_en = ?,
+      short_name = ?,
+      reg_no = ?,
+      address = ?,
+      district = ?,
+      upazila = ?,
+      phone = ?,
+      email = ?,
+      monthly_subscription_default = ?,
+      member_creation_allowed_roles = COALESCE(?, member_creation_allowed_roles),
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = 1
+  `).run(
+    target.name_bn,
+    target.name_en,
+    target.short_name,
+    target.reg_no,
+    target.address,
+    target.district,
+    target.upazila,
+    target.phone,
+    target.email,
+    target.monthly_subscription_default,
+    target.member_creation_allowed_roles
+  );
+
+  AuditService.log({
+    userId: req.user!.id,
+    userRole: req.user!.role,
+    action: 'SWITCH_ACTIVE_SOCIETY',
+    entityType: 'society_settings',
+    entityId: id,
+    newValues: { nameBn: target.name_bn },
+  });
+
+  return res.json({
+    message: `সক্রিয় সমিতি প্রোফাইল পরিবর্তিত হয়ে '${target.name_bn}'-এ সেট হয়েছে।`,
+    activeSociety: target,
+  });
+});
+
+// PUT /api/settings (Update Active Society Profile)
 router.put('/', authenticate, requireRole(['super_admin']), (req: Request, res: Response) => {
   const {
     nameBn,
@@ -84,6 +264,21 @@ router.put('/', authenticate, requireRole(['super_admin']), (req: Request, res: 
     selfRegistrationEnabled !== undefined ? (selfRegistrationEnabled ? 1 : 0) : null
   );
 
+  // Sync with active society in societies table
+  try {
+    db.prepare(`
+      UPDATE societies SET
+        name_bn = COALESCE(?, name_bn),
+        name_en = COALESCE(?, name_en),
+        short_name = COALESCE(?, short_name),
+        reg_no = COALESCE(?, reg_no),
+        address = COALESCE(?, address),
+        phone = COALESCE(?, phone),
+        email = COALESCE(?, email)
+      WHERE id = 1
+    `).run(nameBn, nameEn, shortName, regNo, address, phone, email);
+  } catch {}
+
   AuditService.log({
     userId: req.user!.id,
     userRole: req.user!.role,
@@ -104,13 +299,12 @@ router.get('/backup', authenticate, requireRole(['super_admin']), (req: Request,
     return res.status(404).json({ error: 'Database file not found.' });
   }
 
-  const filename = `society-backup-${new Date().toISOString().slice(0, 10)}.db`;
+  const filename = `somobaypro-backup-${new Date().toISOString().slice(0, 10)}.db`;
   res.download(dbFile, filename);
 });
 
 // GET /api/settings/overview (Consolidated Executive Dashboard Metrics)
 router.get('/overview', authenticate, requireRole(['super_admin', 'president', 'general_secretary', 'treasurer', 'admin', 'advisor']), (req: Request, res: Response) => {
-  // Members count
   const memberStats = db.prepare(`
     SELECT 
       count(*) as total_members,
@@ -120,7 +314,6 @@ router.get('/overview', authenticate, requireRole(['super_admin', 'president', '
     FROM members
   `).get() as any;
 
-  // Subscriptions & Collections
   const collectionStats = db.prepare(`
     SELECT 
       COALESCE(SUM(amount), 0) as total_approved_collection,
@@ -129,7 +322,6 @@ router.get('/overview', authenticate, requireRole(['super_admin', 'president', '
     WHERE status = 'valid'
   `).get() as any;
 
-  // Dues
   const duesStats = db.prepare(`
     SELECT 
       COALESCE(SUM(due_amount - paid_amount), 0) as total_outstanding_dues
@@ -137,7 +329,6 @@ router.get('/overview', authenticate, requireRole(['super_admin', 'president', '
     WHERE status != 'paid'
   `).get() as any;
 
-  // Pending Deposit Submissions
   const pendingSubmissions = db.prepare(`
     SELECT 
       COUNT(id) as pending_submissions_count,
@@ -146,14 +337,12 @@ router.get('/overview', authenticate, requireRole(['super_admin', 'president', '
     WHERE status IN ('pending', 'verified_by_treasurer')
   `).get() as any;
 
-  // Total Bank Balances
   const bankBalances = db.prepare(`
     SELECT COALESCE(SUM(current_balance), 0) as total_bank_balance
     FROM bank_accounts
     WHERE is_active = 1
   `).get() as any;
 
-  // Recent Submissions
   const recentSubmissions = db.prepare(`
     SELECT ps.*, m.full_name_bn, m.mobile
     FROM payment_submissions ps
@@ -162,12 +351,10 @@ router.get('/overview', authenticate, requireRole(['super_admin', 'president', '
     LIMIT 5
   `).all();
 
-  // Recent Notices
   const recentNotices = db.prepare(`
     SELECT * FROM notices WHERE is_published = 1 ORDER BY publish_date DESC LIMIT 5
   `).all();
 
-  // Open Support Tickets
   const openTicketsCount = (db.prepare(`
     SELECT count(*) as count FROM support_tickets WHERE status = 'open'
   `).get() as { count: number }).count;

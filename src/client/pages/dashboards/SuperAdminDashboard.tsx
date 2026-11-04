@@ -51,17 +51,24 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onNavi
 
           <div className="mt-4 flex flex-wrap gap-2 text-xs">
             <button
-              onClick={() => onNavigate('members')}
-              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 font-bold rounded-xl flex items-center gap-1.5 shadow transition"
+              onClick={() => onNavigate('settings')}
+              className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 font-bold rounded-xl text-slate-950 flex items-center gap-1.5 shadow transition"
             >
-              <Plus className="w-4 h-4" />
-              <span>{language === 'bn' ? 'নতুন সদস্য যোগ করুন' : 'Add Member'}</span>
+              <Users className="w-4 h-4" />
+              <span>{language === 'bn' ? 'সদস্য যুক্ত করার পারমিশন' : 'Member Permissions'}</span>
+            </button>
+            <button
+              onClick={() => onNavigate('members')}
+              className="px-4 py-2 bg-white/10 hover:bg-white/20 font-semibold rounded-xl flex items-center gap-1.5 transition"
+            >
+              <Plus className="w-4 h-4 text-emerald-400" />
+              <span>{language === 'bn' ? 'সদস্য তালিকা ও সংযোজন' : 'Add Member'}</span>
             </button>
             <button
               onClick={() => onNavigate('payments')}
               className="px-4 py-2 bg-white/10 hover:bg-white/20 font-semibold rounded-xl flex items-center gap-1.5 transition"
             >
-              <CheckSquare className="w-4 h-4 text-emerald-400" />
+              <CheckSquare className="w-4 h-4 text-teal-400" />
               <span>{language === 'bn' ? 'পেমেন্ট যাচাই কিউ' : 'Payment Approvals'}</span>
             </button>
             <a

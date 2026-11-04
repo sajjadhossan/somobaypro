@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   ShieldAlert, Bell, Globe, LogOut, User as UserIcon, 
-  Menu, X, CheckCircle, ChevronDown 
+  Menu, X, CheckCircle, ChevronDown, Building2, Plus, Sparkles 
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -11,10 +11,42 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }) => {
-  const { user, society, logout, language, setLanguage, t, quickSwitchRole } = useAuth();
+  const { user, society, logout, language, setLanguage, t, quickSwitchRole, refreshUserData } = useAuth();
   const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
+  const [showSocietyHub, setShowSocietyHub] = useState(false);
+  const [societiesList, setSocietiesList] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+
+  const fetchSocieties = async () => {
+    try {
+      const res = await fetch('/api/settings/societies', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('pkss_token')}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSocietiesList(data.societies || []);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSwitchSociety = async (id: number) => {
+    try {
+      const res = await fetch(`/api/settings/societies/${id}/switch`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('pkss_token')}` },
+      });
+      if (res.ok) {
+        setShowSocietyHub(false);
+        refreshUserData();
+        window.location.reload();
+      }
+    } catch (err) {
+      alert('সুইচ করতে ব্যর্থ হয়েছে।');
+    }
+  };
 
   const fetchNotifications = async () => {
     try {
@@ -32,9 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
 
   const handleNotificationClick = () => {
     setShowNotifications(!showNotifications);
-    if (!showNotifications) {
-      fetchNotifications();
-    }
+    if (!showNotifications) fetchNotifications();
   };
 
   const roles = [
@@ -57,7 +87,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          {/* Logo & Society Name */}
+          
+          {/* SomobayPro App Identity + Active Society Badge */}
           <div className="flex items-center gap-3">
             {user && (
               <button
@@ -69,26 +100,79 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
               </button>
             )}
             
-            <a href="/" className="flex items-center gap-3">
+            <a href="/" className="flex items-center gap-2.5">
               <img
-                src={society?.logo_url || '/logo.svg'}
-                alt="Logo"
+                src="/somobaypro-logo.svg"
+                alt="SomobayPro Logo"
                 className="w-10 h-10 object-contain drop-shadow"
               />
               <div className="leading-tight">
-                <h1 className="font-bold text-slate-900 text-sm sm:text-base tracking-tight line-clamp-1">
-                  {language === 'bn' ? society?.name_bn || 'প্রগতি কল্যাণ সমবায় সমিতি' : society?.name_en || 'Progoti Kalyan Somobay Samity'}
-                </h1>
-                <p className="text-[11px] text-emerald-700 font-medium">
-                  {t('tagline')} • {society?.reg_no || 'নিবন্ধিত সমবায়'}
+                <div className="flex items-center gap-1.5">
+                  <span className="font-black text-slate-900 text-base tracking-tight font-sans">
+                    Somobay<span className="text-emerald-600">Pro</span>
+                  </span>
+                  <span className="hidden sm:inline-block px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] font-bold rounded">
+                    OS v1.0
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-500 font-medium line-clamp-1">
+                  স্মার্ট সমবায় ও সোসাইটি প্ল্যাটফর্ম
                 </p>
               </div>
             </a>
+
+            {/* Society Profile Capsule */}
+            <div className="hidden lg:flex items-center ml-4 pl-4 border-l border-slate-200">
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setShowSocietyHub(!showSocietyHub);
+                    if (!showSocietyHub) fetchSocieties();
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-800 hover:text-emerald-900 rounded-xl border border-slate-200 text-xs font-semibold transition"
+                  title="Active Society Profile"
+                >
+                  <Building2 className="w-4 h-4 text-emerald-600" />
+                  <span className="max-w-[200px] truncate">
+                    {language === 'bn' ? society?.name_bn || 'প্রগতি কল্যাণ সমবায় সমিতি' : society?.name_en || 'Progoti Kalyan Samity'}
+                  </span>
+                  {user?.role === 'super_admin' && <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+                </button>
+
+                {/* Society Switcher Dropdown (Super Admin) */}
+                {showSocietyHub && user?.role === 'super_admin' && (
+                  <div className="absolute left-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200 p-3 z-50 animate-in fade-in zoom-in-95">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-xs font-bold text-slate-600">
+                      <span>সোসাইটি প্রোফাইল হাব</span>
+                      <span className="text-[10px] font-normal text-emerald-600">সুপার এডমিন</span>
+                    </div>
+
+                    <div className="py-2 space-y-1 max-h-56 overflow-y-auto">
+                      {societiesList.map((soc) => (
+                        <button
+                          key={soc.id}
+                          onClick={() => handleSwitchSociety(soc.id)}
+                          className="w-full text-left p-2 rounded-xl text-xs hover:bg-emerald-50 transition flex items-center justify-between group"
+                        >
+                          <div>
+                            <p className="font-bold text-slate-900 group-hover:text-emerald-900">{soc.name_bn}</p>
+                            <span className="text-[10px] text-slate-400 font-mono">{soc.reg_no || 'নিবন্ধিত'}</span>
+                          </div>
+                          {society?.name_bn === soc.name_bn && (
+                            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Right Controls */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Quick Role Switcher (Crucial for testing all 7 primary dashboards) */}
+            {/* Quick Role Switcher */}
             {user && (
               <div className="relative">
                 <button
@@ -179,7 +263,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
                           <div key={n.id} className={`p-3 text-xs ${n.is_read ? 'opacity-70' : 'bg-emerald-50/50'}`}>
                             <p className="font-semibold text-slate-800">{n.title}</p>
                             <p className="text-slate-600 mt-0.5 line-clamp-2">{n.message}</p>
-                            <span className="text-[10px] text-slate-400 mt-1 block">
+                            <span className="text-[10px] text-slate-400 mt-1 block font-mono">
                               {new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
