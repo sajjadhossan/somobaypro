@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Sparkles, X, Send, Image as ImageIcon, Camera, CheckCircle2, 
   AlertCircle, Building2, User, Calendar, CreditCard, ChevronDown, 
-  RotateCcw, Bot, ShieldCheck, Loader2
+  RotateCcw, Bot, ShieldCheck, Loader2, Mic, MicOff, Volume2, VolumeX
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -22,7 +22,7 @@ export const AIAssistantModal: React.FC = () => {
     {
       id: 'welcome',
       sender: 'ai',
-      text: `👋 আসসালামু আলাইকুম ${user?.fullNameBn || 'সম্মানিত সদস্য'}!\n\nআমি **Somobay AI** — আপনার ডিজিটাল সমবায় সহকারী।\n\nআপনি আমাকে ব্যাংকে জমা দেওয়া **রসিদের ছবি (Deposit Slip)** দিলে আমি তা বিশ্লেষণ করে সরাসরি চাঁদা এন্ট্রি ড্রাফট প্রস্তুত করতে পারি, অথবা যেকোনো সদস্যের বকেয়া ও আর্থিক রিপোর্ট সম্পর্কে জানতে পারেন।`,
+      text: `👋 আসসালামু আলাইকুম ${user?.fullNameBn || 'সম্মানিত সদস্য'}!\n\nআমি **Somobay AI** — আপনার ডিজিটাল সমবায় ও ভয়েস সহকারী।\n\nআপনি আমাকে মুখে বাংলায় **ভয়েস কমান্ড** দিতে পারেন, অথবা ব্যাংকে জমা দেওয়া **রসিদের ছবি (Deposit Slip)** দিলে সরাসরি চাঁদা এন্ট্রি ড্রাফট প্রস্তুত করতে পারি। যেকোনো সদস্যের বকেয়া ও আর্থিক রিপোর্ট সম্পর্কে জানতে পারেন।`,
       timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
     },
   ]);
@@ -31,9 +31,92 @@ export const AIAssistantModal: React.FC = () => {
   const [imageMimeType, setImageMimeType] = useState<string>('image/jpeg');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [submittingDraft, setSubmittingDraft] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(true);
+  const [currentlySpeakingId, setCurrentlySpeakingId] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  // Initialize Speech Recognition (Web Speech API)
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'bn-BD';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((result: any) => result[0].transcript)
+          .join('');
+        setInputMessage(transcript);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition error:', event.error);
+        setIsListening(false);
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    } else {
+      setSpeechSupported(false);
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert('আপনার ব্রাউজারে ভয়েস স্পিচ রেকগনিশন সক্রিয় নেই। ক্রোম ব্রাউজার ব্যবহার করুন।');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      try {
+        recognitionRef.current.start();
+      } catch (err) {
+        console.error('Failed to start speech recognition', err);
+        setIsListening(false);
+      }
+    }
+  };
+
+  const speakMessage = (id: string, text: string) => {
+    if (!('speechSynthesis' in window)) return;
+
+    if (currentlySpeakingId === id) {
+      window.speechSynthesis.cancel();
+      setCurrentlySpeakingId(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const clean = text.replace(/[*#_`]/g, '');
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.lang = 'bn-BD';
+    utterance.onend = () => setCurrentlySpeakingId(null);
+    utterance.onerror = () => setCurrentlySpeakingId(null);
+    setCurrentlySpeakingId(id);
+    window.speechSynthesis.speak(utterance);
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -166,19 +249,23 @@ export const AIAssistantModal: React.FC = () => {
 
   return (
     <>
-      {/* Floating Launcher Button */}
+      {/* Floating Launcher Button with Voice Indicator */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-full shadow-2xl shadow-emerald-900/40 border border-emerald-400/30 transition-all transform hover:scale-105 active:scale-95 group"
-        title="Somobay AI Smart Assistant"
+        className="fixed bottom-20 right-4 sm:bottom-6 sm:right-6 z-40 flex items-center gap-2 px-3.5 py-2.5 sm:px-4 sm:py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:brightness-110 text-white rounded-full shadow-2xl shadow-emerald-950/50 border border-emerald-300/40 transition-all transform hover:scale-105 active:scale-95 group"
+        title="Somobay AI স্মার্ট ভয়েস সহকারী"
       >
         <div className="relative">
-          <Sparkles className="w-5 h-5 animate-pulse text-amber-300" />
-          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-ping" />
+          <Sparkles className="w-5 h-5 text-amber-300 animate-pulse" />
+          <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-300 rounded-full animate-ping" />
         </div>
-        <span className="font-bold text-xs sm:text-sm tracking-wide">
-          {isOpen ? 'সহকারী বন্ধ করুন' : 'Somobay AI'}
-        </span>
+        <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm tracking-tight">
+          <span>{isOpen ? 'সহকারী বন্ধ' : 'Somobay AI'}</span>
+          <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-white/20 text-[10px] font-medium text-emerald-100">
+            <Mic className="w-3 h-3 text-emerald-200" />
+            <span className="hidden sm:inline">ভয়েস</span>
+          </div>
+        </div>
       </button>
 
       {/* Chat Window Drawer / Modal */}
@@ -321,7 +408,29 @@ export const AIAssistantModal: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <span className="text-[10px] text-slate-400 mt-1 px-1">{m.timestamp}</span>
+                <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 px-1">
+                  <span>{m.timestamp}</span>
+                  {m.sender === 'ai' && (
+                    <button
+                      type="button"
+                      onClick={() => speakMessage(m.id, m.text)}
+                      className="p-1 rounded-md text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 transition flex items-center gap-1"
+                      title={currentlySpeakingId === m.id ? 'ভয়েস বন্ধ করুন' : 'ভয়েসে শুনুন (Read aloud)'}
+                    >
+                      {currentlySpeakingId === m.id ? (
+                        <>
+                          <VolumeX className="w-3.5 h-3.5 text-red-500 animate-pulse" />
+                          <span className="text-[9px] text-red-500 font-bold">থামুন</span>
+                        </>
+                      ) : (
+                        <>
+                          <Volume2 className="w-3.5 h-3.5" />
+                          <span className="text-[9px]">শুনুন</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
 
@@ -350,6 +459,23 @@ export const AIAssistantModal: React.FC = () => {
             </div>
           )}
 
+          {/* Voice Listening Active Indicator Banner */}
+          {isListening && (
+            <div className="px-3 py-1.5 bg-red-50 border-t border-red-200 text-red-700 text-xs flex items-center justify-between animate-pulse">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
+                <span className="font-bold">ভয়েস শুনছি... মুখে বাংলায় বলুন (Listening...)</span>
+              </div>
+              <button
+                type="button"
+                onClick={toggleListening}
+                className="text-[11px] bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded font-bold"
+              >
+                সম্পন্ন
+              </button>
+            </div>
+          )}
+
           {/* Input Bar */}
           <div className="p-3 bg-white border-t border-slate-200">
             <div className="flex items-center gap-2">
@@ -369,13 +495,29 @@ export const AIAssistantModal: React.FC = () => {
                 <Camera className="w-4 h-4" />
               </button>
 
+              {/* Voice Microphone Button */}
+              <button
+                type="button"
+                onClick={toggleListening}
+                className={`p-2.5 rounded-xl transition-all ${
+                  isListening
+                    ? 'bg-red-600 text-white animate-pulse shadow-md shadow-red-500/40'
+                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
+                }`}
+                title={isListening ? 'ভয়েস ইনপুট বন্ধ করুন' : 'বাংলায় ভয়েস ইনপুট দিন (Voice Input)'}
+              >
+                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              </button>
+
               <input
                 type="text"
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                placeholder="সদস্যের নাম বা স্লিপ সম্পর্কে লিখুন..."
-                className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500"
+                placeholder={isListening ? 'শুনছি... বলুন...' : 'মুখে বলুন বা লিখে জানান...'}
+                className={`flex-1 p-2.5 bg-slate-50 border rounded-xl text-xs text-slate-900 outline-none transition ${
+                  isListening ? 'border-red-400 ring-2 ring-red-200 bg-red-50/30' : 'border-slate-200 focus:ring-2 focus:ring-emerald-500'
+                }`}
               />
 
               <button
