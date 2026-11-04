@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <circle cx="50" cy="50" r="48" fill="#047857" stroke="#059669" stroke-width="4"/>
+  <circle cx="50" cy="50" r="42" fill="#065f46"/>
+  <!-- Decorative Ring -->
+  <circle cx="50" cy="50" r="38" stroke="#34d399" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <!-- Hands holding a growing plant / society harmony -->
+  <path d="M50 24 C50 24 40 34 40 44 C40 50 45 54 50 54 C55 54 60 50 60 44 C60 34 50 24 50 24 Z" fill="#34d399"/>
+  <path d="M50 30 L50 54" stroke="#064e3b" stroke-width="2"/>
+  <path d="M50 38 Q45 40 43 45" stroke="#064e3b" stroke-width="1.5"/>
+  <path d="M50 42 Q55 44 57 48" stroke="#064e3b" stroke-width="1.5"/>
+  <!-- Community Hands / Base -->
+  <path d="M30 64 C35 58 45 60 50 66 C55 60 65 58 70 64 C66 74 54 78 50 78 C46 78 34 74 30 64 Z" fill="#f59e0b"/>
+  <!-- Bengali text or star in center -->
+  <circle cx="50" cy="62" r="3" fill="#ffffff"/>
+  <circle cx="50" cy="50" r="48" stroke="#10b981" stroke-width="2"/>
+</svg>
