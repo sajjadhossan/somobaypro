@@ -8,6 +8,7 @@ import { authenticate, requireRole } from '../middleware/auth';
 import { AccountingService } from '../services/accounting.service';
 import { AuditService } from '../services/audit.service';
 import { NotificationService } from '../services/notification.service';
+import { BackupService } from '../services/backup.service';
 
 const router = Router();
 
@@ -479,6 +480,9 @@ router.patch('/submissions/:id/approve', authenticate, requireRole(['super_admin
     entityId: id,
     newValues: { receiptNumber, amount: submission.amount, memberId: submission.member_id },
   });
+
+  // Real-time instantaneous database backup upon financial transaction
+  BackupService.triggerBackup(`নতুন চাঁদা জমা অনুমোদন ও রসিদ জারি (রসিদ: ${receiptNumber}, পরিমাণ: ৳${submission.amount})`).catch(() => {});
 
   return res.json({
     message: 'Payment approved successfully. Digital receipt generated and accounting ledger updated.',

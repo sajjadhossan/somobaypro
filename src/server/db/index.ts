@@ -478,6 +478,13 @@ export function initDatabase() {
     `ALTER TABLE receipts ADD COLUMN depositor_relation TEXT`,
     `ALTER TABLE receipts ADD COLUMN depositor_nid TEXT`,
     `ALTER TABLE receipts ADD COLUMN depositor_mobile TEXT`,
+    `ALTER TABLE society_settings ADD COLUMN telegram_bot_token TEXT`,
+    `ALTER TABLE society_settings ADD COLUMN telegram_chat_id TEXT`,
+    `ALTER TABLE society_settings ADD COLUMN telegram_backup_enabled INTEGER DEFAULT 1`,
+    `ALTER TABLE society_settings ADD COLUMN telegram_backup_interval_seconds INTEGER DEFAULT 60`,
+    `ALTER TABLE society_settings ADD COLUMN last_telegram_backup_at DATETIME`,
+    `ALTER TABLE society_settings ADD COLUMN gemini_api_key TEXT`,
+    `ALTER TABLE society_settings ADD COLUMN gemini_model TEXT DEFAULT 'gemini-2.0-flash'`,
   ];
 
   for (const alterSql of migrationAlters) {

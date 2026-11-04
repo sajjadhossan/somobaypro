@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   Settings, Download, ShieldCheck, Save, Building2, 
-  Users, CheckCircle2, Plus, Sparkles, X 
+  Users, CheckCircle2, Plus, Sparkles, X, Send, Bot, 
+  RefreshCw, FileDown, Clock, Key, Database, AlertCircle
 } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
@@ -25,6 +26,19 @@ export const SettingsPage: React.FC = () => {
     receiptFooter: '',
     monthlySubscriptionDefault: 1000,
   });
+
+  // Telegram Backup State
+  const [telegramToken, setTelegramToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [telegramEnabled, setTelegramEnabled] = useState(true);
+  const [backupStatus, setBackupStatus] = useState<any>(null);
+  const [testingTelegram, setTestingTelegram] = useState(false);
+  const [triggeringBackup, setTriggeringBackup] = useState(false);
+
+  // Gemini AI State
+  const [geminiApiKey, setGeminiApiKey] = useState('');
+  const [geminiModel, setGeminiModel] = useState('gemini-2.0-flash');
+  const [savingGemini, setSavingGemini] = useState(false);
 
   // Permissions State
   const [allowedRoles, setAllowedRoles] = useState<string[]>([]);
@@ -72,6 +86,155 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  const fetchBackupAndAISettings = async () => {
+    try {
+      const token = localStorage.getItem('pkss_token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const bRes = await fetch('/api/backup/status', { headers });
+      if (bRes.ok) {
+        const bData = await bRes.json();
+        setBackupStatus(bData.status);
+        if (bData.status) {
+          setTelegramChatId(bData.status.chatId || '');
+          setTelegramEnabled(bData.status.enabled);
+        }
+      }
+
+      const sRes = await fetch('/api/settings', { headers });
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        if (sData.settings) {
+          setGeminiApiKey(sData.settings.gemini_api_key || '');
+          setGeminiModel(sData.settings.gemini_model || 'gemini-2.0-flash');
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSaveTelegramConfig = async () => {
+    try {
+      const token = localStorage.getItem('pkss_token');
+      const res = await fetch('/api/backup/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          botToken: telegramToken || undefined,
+          chatId: telegramChatId,
+          enabled: telegramEnabled,
+        }),
+      });
+
+      if (res.ok) {
+        alert('টেলিগ্রাম ব্যাকআপ কনফিগারেশন সংরক্ষিত হয়েছে!');
+        setTelegramToken('');
+        fetchBackupAndAISettings();
+      } else {
+        alert('সংরক্ষণ ব্যর্থ হয়েছে।');
+      }
+    } catch (e) {
+      alert('সার্ভার যোগাযোগ ত্রুটি।');
+    }
+  };
+
+  const handleTestTelegram = async () => {
+    if (!telegramToken && !backupStatus?.hasToken) {
+      alert('অনুগ্রহ করে টেলিগ্রাম বট টোকেন দিন।');
+      return;
+    }
+    if (!telegramChatId) {
+      alert('অনুগ্রহ করে টেলিগ্রাম চ্যাট আইডি বা চ্যানেল আইডি দিন।');
+      return;
+    }
+
+    setTestingTelegram(true);
+    try {
+      const token = localStorage.getItem('pkss_token');
+      const res = await fetch('/api/backup/test-telegram', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          botToken: telegramToken,
+          chatId: telegramChatId,
+        }),
+      });
+
+      const data = await res.json();
+      alert(data.message || (data.success ? 'টেস্ট সফল!' : 'টেস্ট ব্যর্থ হয়েছে।'));
+    } catch (e) {
+      alert('সার্ভার ত্রুটি।');
+    } finally {
+      setTestingTelegram(false);
+    }
+  };
+
+  const handleTriggerManualBackup = async () => {
+    setTriggeringBackup(true);
+    try {
+      const token = localStorage.getItem('pkss_token');
+      const res = await fetch('/api/backup/trigger', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: 'এডমিন প্যানেল হতে তাৎক্ষণিক ব্যাকআপ অনুরোধ' }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert(data.message || 'ব্যাকআপ সম্পন্ন হয়েছে!');
+        fetchBackupAndAISettings();
+      } else {
+        alert(data.message || 'ব্যাকআপ ব্যর্থ হয়েছে।');
+      }
+    } catch (e) {
+      alert('সার্ভার যোগাযোগ ত্রুটি।');
+    } finally {
+      setTriggeringBackup(false);
+    }
+  };
+
+  const handleDownloadDb = () => {
+    window.location.href = '/api/backup/download-latest';
+  };
+
+  const handleSaveGemini = async () => {
+    setSavingGemini(true);
+    try {
+      const token = localStorage.getItem('pkss_token');
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          geminiApiKey,
+          geminiModel,
+        }),
+      });
+
+      if (res.ok) {
+        alert('Gemini AI কনফিগারেশন সফলভাবে সংরক্ষিত হয়েছে!');
+      } else {
+        alert('সংরক্ষণ ব্যর্থ হয়েছে।');
+      }
+    } catch (e) {
+      alert('সার্ভার যোগাযোগ ত্রুটি।');
+    } finally {
+      setSavingGemini(false);
+    }
+  };
+
   useEffect(() => {
     if (society) {
       setFormData({
@@ -92,6 +255,7 @@ export const SettingsPage: React.FC = () => {
       });
     }
     fetchSettingsAndPermissions();
+    fetchBackupAndAISettings();
   }, [society]);
 
   // Toggle role permission
@@ -481,6 +645,202 @@ export const SettingsPage: React.FC = () => {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* 4. TELEGRAM 1-MINUTE & REAL-TIME AUTO BACKUP SYSTEM */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <Send className="w-5 h-5 text-sky-600" />
+              <h2 className="text-base font-bold text-slate-900">
+                টেলিগ্রাম অটো ক্লাউড ব্যাকআপ (১-মিনিট ও ইনস্ট্যান্ট ট্রানজেকশন)
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              প্রতি ১ মিনিট পর পর এবং যেকোনো চাঁদা/খরচ লেনদেনের সাথে সাথে আপনার প্রাইভেট টেলিগ্রাম চ্যানেলে সুরক্ষিত ব্যাকআপ ফাইল চলে যাবে।
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-[11px] font-bold ${
+              backupStatus?.enabled && backupStatus?.hasToken
+                ? 'bg-emerald-100 text-emerald-800'
+                : 'bg-amber-100 text-amber-800'
+            }`}>
+              <span className={`w-2 h-2 rounded-full ${backupStatus?.enabled && backupStatus?.hasToken ? 'bg-emerald-500 animate-ping' : 'bg-amber-500'}`} />
+              {backupStatus?.enabled && backupStatus?.hasToken ? 'সচল (Active)' : 'কনফিগারেশন অপেক্ষমাণ'}
+            </span>
+          </div>
+        </div>
+
+        {/* Status Metrics Bar */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
+          <div>
+            <span className="text-slate-400 block text-[11px]">সিঙ্ক ইন্টারভাল (Sync Interval):</span>
+            <span className="font-bold text-slate-800 font-mono">প্রতি ৬০ সেকেন্ড (১ মিনিট)</span>
+          </div>
+          <div>
+            <span className="text-slate-400 block text-[11px]">সর্বশেষ টেলিগ্রাম ক্লাউড ব্যাকআপ:</span>
+            <span className="font-bold text-emerald-700 font-mono">
+              {backupStatus?.lastBackupAt ? new Date(backupStatus.lastBackupAt).toLocaleString('bn-BD') : 'এখনো সম্পন্ন হয়নি'}
+            </span>
+          </div>
+          <div>
+            <span className="text-slate-400 block text-[11px]">লোকাল ডিভাইসে সংরক্ষিত স্ন্যাপশট:</span>
+            <span className="font-bold text-indigo-700 font-mono">{backupStatus?.localBackupCount || 0} টি ব্যাকআপ কপি</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+          <div>
+            <label className="font-bold block mb-1 text-slate-700">
+              টেলিগ্রাম বট টোকেন (Telegram Bot Token) *
+            </label>
+            <input
+              type="password"
+              value={telegramToken}
+              onChange={(e) => setTelegramToken(e.target.value)}
+              placeholder={backupStatus?.hasToken ? '•••••••••••••••••••• (সংরক্ষিত আছে, পরিবর্তন করতে নতুন দিন)' : 'e.g. 123456789:ABCdefGhIJKlmNoPQRstuVWXyz'}
+              className="w-full p-2.5 bg-slate-50 border rounded-xl font-mono"
+            />
+            <span className="text-[10px] text-slate-400 mt-1 block">
+              টেলিগ্রাম @BotFather থেকে ২ মিনিটে সম্পূর্ণ ফ্রিতে বট তৈরি করা যায়।
+            </span>
+          </div>
+
+          <div>
+            <label className="font-bold block mb-1 text-slate-700">
+              টেলিগ্রাম চ্যাট / চ্যানেল আইডি (Chat or Channel ID) *
+            </label>
+            <input
+              type="text"
+              value={telegramChatId}
+              onChange={(e) => setTelegramChatId(e.target.value)}
+              placeholder="e.g. -1001234567890 বা @my_society_backup_channel"
+              className="w-full p-2.5 bg-slate-50 border rounded-xl font-mono"
+            />
+            <span className="text-[10px] text-slate-400 mt-1 block">
+              আপনার তৈরি করা ব্যাকআপ চ্যানেল বা গ্রুপের আইডি যেখানে বটটিকে এডমিন করা হয়েছে।
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700">
+            <input
+              type="checkbox"
+              checked={telegramEnabled}
+              onChange={(e) => setTelegramEnabled(e.target.checked)}
+              className="w-4 h-4 text-emerald-600 rounded"
+            />
+            <span>১-মিনিট পর পর এবং লেনদেনে অটো ব্যাকআপ সক্রিয় রাখুন</span>
+          </label>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleTestTelegram}
+              disabled={testingTelegram}
+              className="px-3.5 py-2 bg-slate-100 hover:bg-sky-50 text-sky-800 rounded-xl text-xs font-bold border border-slate-200 transition flex items-center gap-1.5"
+            >
+              <Send className="w-3.5 h-3.5 text-sky-600" />
+              <span>{testingTelegram ? 'টেস্ট চলছে...' : 'কানেকশন টেস্ট'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleTriggerManualBackup}
+              disabled={triggeringBackup}
+              className="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-200 transition flex items-center gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-emerald-600 ${triggeringBackup ? 'animate-spin' : ''}`} />
+              <span>{triggeringBackup ? 'ব্যাকআপ হচ্ছে...' : 'এখনই ব্যাকআপ নিন'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleDownloadDb}
+              className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              title="বর্তমান SQLite ডাটাবেস ডাউনলোড করুন"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>SQLite ডাউনলোড</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSaveTelegramConfig}
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>টেলিগ্রাম সেটিংস সংরক্ষণ</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. GOOGLE GEMINI AI ASSISTANT CONFIGURATION */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-4">
+        <div className="border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2">
+            <Bot className="w-5 h-5 text-emerald-600" />
+            <h2 className="text-base font-bold text-slate-900">
+              Google Gemini AI অ্যাসিস্ট্যান্ট কনফিগারেশন (স্লিপ OCR ও স্মার্ট সহকারী)
+            </h2>
+          </div>
+          <p className="text-xs text-slate-500 mt-0.5">
+            ব্যাংক জমা রসিদের ছবি বিশ্লেষণ (Multimodal Vision OCR) ও প্রাকৃতিক বাংলায় সমিতি পরিচালনা করতে গুগল জেমিনি এপিআই কি দিন।
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+          <div className="sm:col-span-2">
+            <label className="font-bold block mb-1 text-slate-700">
+              Gemini API Key (Google AI Studio Free Key) *
+            </label>
+            <input
+              type="password"
+              value={geminiApiKey}
+              onChange={(e) => setGeminiApiKey(e.target.value)}
+              placeholder="AIzaSy..."
+              className="w-full p-2.5 bg-slate-50 border rounded-xl font-mono text-xs"
+            />
+            <span className="text-[10px] text-slate-400 mt-1 block">
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-emerald-600 underline font-semibold">
+                Google AI Studio
+              </a> হতে বিনামূল্যে কয়েক সেকেন্ডে ফ্রি Gemini API Key নেওয়া যায়। কোনো ক্রেডিট কার্ড লাগে না।
+            </span>
+          </div>
+
+          <div>
+            <label className="font-bold block mb-1 text-slate-700">এআই মডেল নির্বাচন (Model)</label>
+            <select
+              value={geminiModel}
+              onChange={(e) => setGeminiModel(e.target.value)}
+              className="w-full p-2.5 bg-slate-50 border rounded-xl font-bold text-slate-800"
+            >
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash (আল্ট্রা ফাস্ট ও লেটেস্ট)</option>
+              <option value="gemini-1.5-flash">Gemini 1.5 Flash (স্থিতিশীল ও হালকা)</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2">
+          <span className="text-[11px] text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 font-medium">
+            💡 এপিআই কি সেভ করার সাথে সাথে স্ক্রিনের নিচের ডানপাশের <strong>Somobay AI</strong> বাটনে ভিশন মডেল সক্রিয় হবে।
+          </span>
+
+          <button
+            type="button"
+            onClick={handleSaveGemini}
+            disabled={savingGemini}
+            className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+          >
+            <Save className="w-3.5 h-3.5" />
+            <span>{savingGemini ? 'সংরক্ষণ হচ্ছে...' : 'Gemini AI সেটিংস সংরক্ষণ করুন'}</span>
+          </button>
+        </div>
       </div>
 
       {/* New Society Profile Creation Modal */}

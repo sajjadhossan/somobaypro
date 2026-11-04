@@ -18,6 +18,9 @@ import documentsRouter from './routes/documents.routes';
 import supportRouter from './routes/support.routes';
 import auditRouter from './routes/audit.routes';
 import settingsRouter from './routes/settings.routes';
+import backupRouter from './routes/backup.routes';
+import aiRouter from './routes/ai.routes';
+import { BackupService } from './services/backup.service';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -48,6 +51,8 @@ app.use('/api/documents', documentsRouter);
 app.use('/api/support', supportRouter);
 app.use('/api/audit', auditRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/backup', backupRouter);
+app.use('/api/ai', aiRouter);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -82,6 +87,9 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 async function startServer() {
   try {
     await seedDatabase();
+    // Start automated 1-minute and real-time database backup service
+    BackupService.initScheduler();
+
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`=======================================================`);
       console.log(`DIGITAL SOCIETY MANAGEMENT SYSTEM - BACKEND SERVER`);

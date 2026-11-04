@@ -32,6 +32,7 @@ import { AuditPage } from './pages/AuditPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { IdCardPage } from './pages/IdCardPage';
+import { AIAssistantModal } from './components/AIAssistantModal';
 import { WifiOff } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -184,6 +185,9 @@ export const App: React.FC = () => {
         onNavigate={setCurrentPath}
         onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
       />
+
+      {/* Floating Somobay AI Smart Assistant */}
+      <AIAssistantModal />
     </div>
   );
 };

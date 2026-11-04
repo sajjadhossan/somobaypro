@@ -215,6 +215,8 @@ router.put('/', authenticate, requireRole(['super_admin']), (req: Request, res: 
     membershipFeeDefault,
     approvalWorkflow,
     selfRegistrationEnabled,
+    geminiApiKey,
+    geminiModel,
   } = req.body;
 
   const oldSettings = db.prepare(`SELECT * FROM society_settings WHERE id = 1`).get();
@@ -240,6 +242,8 @@ router.put('/', authenticate, requireRole(['super_admin']), (req: Request, res: 
       membership_fee_default = COALESCE(?, membership_fee_default),
       approval_workflow = COALESCE(?, approval_workflow),
       self_registration_enabled = COALESCE(?, self_registration_enabled),
+      gemini_api_key = COALESCE(?, gemini_api_key),
+      gemini_model = COALESCE(?, gemini_model),
       updated_at = CURRENT_TIMESTAMP
     WHERE id = 1
   `).run(
@@ -261,7 +265,9 @@ router.put('/', authenticate, requireRole(['super_admin']), (req: Request, res: 
     monthlySubscriptionDefault ? Number(monthlySubscriptionDefault) : null,
     membershipFeeDefault ? Number(membershipFeeDefault) : null,
     approvalWorkflow,
-    selfRegistrationEnabled !== undefined ? (selfRegistrationEnabled ? 1 : 0) : null
+    selfRegistrationEnabled !== undefined ? (selfRegistrationEnabled ? 1 : 0) : null,
+    geminiApiKey !== undefined ? geminiApiKey : null,
+    geminiModel !== undefined ? geminiModel : null
   );
 
   // Sync with active society in societies table
