@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useRealtimeRefresh } from '../context/RealtimeContext';
 import { 
   CheckSquare, Plus, Clock, CheckCircle2, XCircle, 
   Upload, FileText, Building2, Calendar, QrCode, ShieldCheck, X,
-  User, Users 
+  User, Users, Mic, MicOff, Sparkles, Volume2 
 } from 'lucide-react';
 import { ReceiptModal } from '../components/ReceiptModal';
 
@@ -46,6 +46,209 @@ export const PaymentsPage: React.FC = () => {
     notes: '',
   });
   const [slipFile, setSlipFile] = useState<File | null>(null);
+
+  // Voice Auto-Fill for Bank Deposit Slip
+  const [isVoiceFilling, setIsVoiceFilling] = useState(false);
+  const [voiceFillTranscript, setVoiceFillTranscript] = useState('');
+  const [voiceFillStatus, setVoiceFillStatus] = useState('');
+  const voiceFillRecRef = useRef<any>(null);
+  const voiceFillTimerRef = useRef<any>(null);
+
+  const playVoiceTone = (f1: number, f2: number) => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f1, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(f2, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } catch {}
+  };
+
+  const speakVoiceNotice = (text: string) => {
+    if (!('speechSynthesis' in window)) return;
+    try {
+      window.speechSynthesis.cancel();
+      const clean = text.replace(/[*#_`~>]/g, '');
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.lang = 'bn-BD';
+      utterance.rate = 0.92;
+      utterance.pitch = 1.02;
+      const voices = window.speechSynthesis.getVoices();
+      const bnVoice =
+        voices.find((v) => v.name.toLowerCase().includes('google') && v.lang.toLowerCase().startsWith('bn')) ||
+        voices.find((v) => v.lang.toLowerCase().startsWith('bn') || v.lang.toLowerCase().includes('bd')) ||
+        voices.find((v) => v.name.toLowerCase().includes('bangla') || v.name.toLowerCase().includes('bengali'));
+      if (bnVoice) utterance.voice = bnVoice;
+      window.speechSynthesis.speak(utterance);
+    } catch {}
+  };
+
+  const parseAmountFromSpeech = (text: string): number | null => {
+    const bengaliToEngDigits = (str: string) =>
+      str.replace(/[০-৯]/g, (d) => '০১২৩৪৫৬৭৮৯'.indexOf(d).toString());
+    const normalized = bengaliToEngDigits(text);
+
+    if (normalized.includes('এক হাজার') || normalized.includes('1 হাজার') || normalized.includes('১ হাজার')) return 1000;
+    if (normalized.includes('দুই হাজার') || normalized.includes('2 হাজার') || normalized.includes('২ হাজার')) return 2000;
+    if (normalized.includes('তিন হাজার') || normalized.includes('3 হাজার') || normalized.includes('৩ হাজার')) return 3000;
+    if (normalized.includes('চার হাজার') || normalized.includes('4 হাজার') || normalized.includes('৪ হাজার')) return 4000;
+    if (normalized.includes('পাঁচ হাজার') || normalized.includes('5 হাজার') || normalized.includes('৫ হাজার')) return 5000;
+    if (normalized.includes('দশ হাজার') || normalized.includes('10 হাজার') || normalized.includes('১০ হাজার')) return 10000;
+    if (normalized.includes('পাঁচশত') || normalized.includes('পাঁচশো') || normalized.includes('500') || normalized.includes('৫০০')) return 500;
+    if (normalized.includes('দেড় হাজার') || normalized.includes('১৫০০') || normalized.includes('1500')) return 1500;
+
+    const match = normalized.match(/\b\d{3,6}\b/);
+    if (match) return parseInt(match[0], 10);
+    return null;
+  };
+
+  const handleApplyVoiceData = (rawText: string) => {
+    const t = rawText.toLowerCase();
+    const updates: any = {};
+
+    // 1. Amount
+    const extractedAmount = parseAmountFromSpeech(t);
+    if (extractedAmount) {
+      updates.amount = extractedAmount;
+    }
+
+    // 2. Bank matching
+    if (t.includes('সোনালী') || t.includes('sonali')) {
+      const sonaliAcc = bankAccounts.find((b) => b.bank_name.toLowerCase().includes('sonali'));
+      if (sonaliAcc) {
+        updates.societyBankAccountId = sonaliAcc.id;
+        updates.memberBankName = 'Sonali Bank PLC';
+      }
+    } else if (t.includes('ডাচ বাংলা') || t.includes('dutch') || t.includes('dbbl')) {
+      const dbblAcc = bankAccounts.find((b) => b.bank_name.toLowerCase().includes('dutch') || b.bank_name.toLowerCase().includes('dbbl'));
+      if (dbblAcc) {
+        updates.societyBankAccountId = dbblAcc.id;
+        updates.memberBankName = 'Dutch-Bangla Bank PLC';
+      }
+    } else if (t.includes('ইসলামী') || t.includes('islami')) {
+      const ibblAcc = bankAccounts.find((b) => b.bank_name.toLowerCase().includes('islami'));
+      if (ibblAcc) {
+        updates.societyBankAccountId = ibblAcc.id;
+        updates.memberBankName = 'Islami Bank Bangladesh PLC';
+      }
+    }
+
+    // 3. Branch matching
+    const branchMatch = t.match(/([\u0980-\u09FFa-zA-Z]+)\s*শাখা/);
+    if (branchMatch && branchMatch[1]) {
+      updates.memberBranchName = branchMatch[1] + ' শাখা';
+    } else if (t.includes('ধানমন্ডি')) {
+      updates.memberBranchName = 'ধানমন্ডি শাখা';
+    } else if (t.includes('মিরপুর')) {
+      updates.memberBranchName = 'মিরপুর শাখা';
+    } else if (t.includes('মতিঝিল')) {
+      updates.memberBranchName = 'মতিঝিল শাখা';
+    }
+
+    // 4. Transaction ID
+    const txnMatch = t.match(/(?:ট্রানজেকশন|ট্রানজেকশন আইডি|আইডি|রসিদ নম্বর|রশিদ|ভাউচার|txn|scroll)\s*[:=]?\s*([a-zA-Z0-9\u0980-\u09FF]+)/);
+    if (txnMatch && txnMatch[1]) {
+      const bengaliToEngDigits = (str: string) =>
+        str.replace(/[০-৯]/g, (d) => '০১২৩৪৫৬৭৮৯'.indexOf(d).toString());
+      updates.transactionId = bengaliToEngDigits(txnMatch[1]);
+    }
+
+    // 5. Member Matching for Officials
+    if (isOfficial && membersList.length > 0) {
+      const matchedMember = membersList.find((m) =>
+        t.includes(m.full_name_bn.toLowerCase()) ||
+        (m.full_name_en && t.includes(m.full_name_en.toLowerCase())) ||
+        (m.mobile && t.includes(m.mobile))
+      );
+      if (matchedMember) {
+        updates.targetMemberId = matchedMember.member_id;
+        updates.depositorName = matchedMember.full_name_bn;
+        updates.depositorMobile = matchedMember.mobile || '';
+      }
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      ...updates,
+    }));
+
+    playVoiceTone(587, 880);
+    const spokenAmount = updates.amount || formData.amount;
+    const spokenNotice = `আপনার ভয়েস থেকে ৳${spokenAmount.toLocaleString('bn-BD')} টাকার ব্যাংক জমার তথ্য পূরণ করা হয়েছে। একবার যাচাই করে দাখিল করুন।`;
+    setVoiceFillStatus('✅ ভয়েস থেকে ফর্মের তথ্য সফলভাবে পূরণ হয়েছে!');
+    speakVoiceNotice(spokenNotice);
+  };
+
+  const toggleVoiceFill = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('আপনার ব্রাউজারে ভয়েস সাপোর্ট নেই। ক্রোম বা এজ ব্রাউজার ব্যবহার করুন।');
+      return;
+    }
+
+    if (isVoiceFilling) {
+      if (voiceFillRecRef.current) voiceFillRecRef.current.stop();
+      setIsVoiceFilling(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'bn-BD';
+
+      recognition.onstart = () => {
+        setIsVoiceFilling(true);
+        setVoiceFillTranscript('');
+        setVoiceFillStatus('🎙️ শুনছি... বলুন: যেমন "সোনালী ব্যাংক ধানমন্ডি শাখায় ১ হাজার টাকা জমা দিলাম"...');
+        playVoiceTone(523, 784);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = Array.from(event.results)
+          .map((result: any) => result[0].transcript)
+          .join('');
+        setVoiceFillTranscript(transcript);
+
+        if (voiceFillTimerRef.current) clearTimeout(voiceFillTimerRef.current);
+        voiceFillTimerRef.current = setTimeout(() => {
+          recognition.stop();
+        }, 1800);
+      };
+
+      recognition.onerror = () => {
+        setIsVoiceFilling(false);
+        setVoiceFillStatus('ভয়েস শনাক্তকরণে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+      };
+
+      recognition.onend = () => {
+        setIsVoiceFilling(false);
+        playVoiceTone(784, 1046);
+        setVoiceFillTranscript((prev) => {
+          if (prev.trim()) {
+            handleApplyVoiceData(prev.trim());
+          }
+          return prev;
+        });
+      };
+
+      voiceFillRecRef.current = recognition;
+      recognition.start();
+    } catch (e) {
+      console.error(e);
+      setIsVoiceFilling(false);
+    }
+  };
 
   const isOfficial = ['super_admin', 'treasurer', 'president', 'admin'].includes(user?.role || '');
 
@@ -596,6 +799,69 @@ export const PaymentsPage: React.FC = () => {
               <p className="text-xs text-slate-500">
                 সমিতির ব্যাংক একাউন্টে টাকা জমা দিয়ে জমার তথ্য ও স্লিপ দাখিল করুন।
               </p>
+            </div>
+
+            {/* Interactive Voice Auto-Fill Bar */}
+            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-indigo-50 border border-emerald-200/80 rounded-2xl p-3.5 space-y-2 shadow-sm">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-xl bg-emerald-600 text-white shadow-sm">
+                    <Sparkles className="w-4 h-4 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                      <span>স্মার্ট ভয়েস অটো-ফিল (Voice Auto-Fill)</span>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                        নতুন
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      টাইপ না করে মুখে বাংলায় বললে ফর্মের ঘরগুলো স্বয়ংক্রিয়ভাবে পূরণ হয়ে যাবে
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={toggleVoiceFill}
+                  className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm transition active:scale-95 ${
+                    isVoiceFilling
+                      ? 'bg-rose-600 text-white animate-pulse ring-4 ring-rose-200'
+                      : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                  }`}
+                >
+                  {isVoiceFilling ? (
+                    <>
+                      <MicOff className="w-3.5 h-3.5" />
+                      <span>রেকর্ডিং বন্ধ করুন</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-3.5 h-3.5" />
+                      <span>মুখে বলুন</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Live Voice Status or Transcript */}
+              {(isVoiceFilling || voiceFillTranscript || voiceFillStatus) && (
+                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-2.5 border border-emerald-300/80 text-[11px] space-y-1 animate-in fade-in">
+                  <div className="flex items-center gap-1.5 text-emerald-800 font-semibold">
+                    {isVoiceFilling ? (
+                      <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                    ) : (
+                      <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
+                    )}
+                    <span>{voiceFillStatus || (isVoiceFilling ? 'শুনছি...' : 'ভয়েস গ্রহণ সম্পন্ন')}</span>
+                  </div>
+                  {voiceFillTranscript && (
+                    <p className="text-slate-700 font-mono bg-slate-50 p-1.5 rounded border border-slate-200 italic">
+                      "{voiceFillTranscript}"
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             <form onSubmit={handleSubmitDeposit} className="space-y-3.5 text-xs">

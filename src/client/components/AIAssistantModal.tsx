@@ -16,7 +16,11 @@ interface Message {
   draftSubmission?: any;
 }
 
-export const AIAssistantModal: React.FC = () => {
+interface AIAssistantModalProps {
+  onNavigate?: (path: string) => void;
+}
+
+export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({ onNavigate }) => {
   const { user, society } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
@@ -281,19 +285,16 @@ export const AIAssistantModal: React.FC = () => {
 
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.lang = 'bn-BD';
-    utterance.rate = 0.95;
-    utterance.pitch = 1.0;
+    utterance.rate = 0.92;
+    utterance.pitch = 1.02;
 
-    // Search for best native Bengali voice
+    // Search for best native Bengali voice (Prioritize Google Bangla for human-like natural tone)
     try {
       const voices = window.speechSynthesis.getVoices();
-      const bnVoice = voices.find(
-        (v) =>
-          v.lang.toLowerCase().startsWith('bn') ||
-          v.lang.toLowerCase().includes('bd') ||
-          v.name.toLowerCase().includes('bangla') ||
-          v.name.toLowerCase().includes('bengali')
-      );
+      const bnVoice =
+        voices.find((v) => v.name.toLowerCase().includes('google') && v.lang.toLowerCase().startsWith('bn')) ||
+        voices.find((v) => v.lang.toLowerCase().startsWith('bn') || v.lang.toLowerCase().includes('bd')) ||
+        voices.find((v) => v.name.toLowerCase().includes('bangla') || v.name.toLowerCase().includes('bengali'));
       if (bnVoice) {
         utterance.voice = bnVoice;
       }
@@ -327,6 +328,113 @@ export const AIAssistantModal: React.FC = () => {
     }
   };
 
+  // Voice Command & Intent Recognition Engine
+  const detectVoiceIntent = (text: string) => {
+    const t = text.toLowerCase().trim();
+
+    // Passbook / সঞ্চয় খতিয়ান
+    if (t.includes('পাসবুক') || t.includes('passbook') || t.includes('খতিয়ান') || t.includes('খতিয়ান') || t.includes('লেজার')) {
+      return {
+        type: 'modal' as const,
+        target: 'passbook',
+        badge: '📗 ডিজিটাল সঞ্চয় পাসবুক ও খতিয়ান',
+        reply: 'আপনার সঞ্চয় পাসবুক ও আজীবন জমার খতিয়ান ওপেন করা হয়েছে।',
+      };
+    }
+
+    // Share Certificate / শেয়ার সনদ
+    if (t.includes('শেয়ার') || t.includes('শেয়ার') || t.includes('সনদ') || t.includes('সার্টিফিকেট') || t.includes('share')) {
+      return {
+        type: 'modal' as const,
+        target: 'share_cert',
+        badge: '📜 ডিজিটাল মূলধন শেয়ার সনদপত্র',
+        reply: 'আপনার ডিজিটাল শেয়ার সনদপত্র ওপেন করা হয়েছে।',
+      };
+    }
+
+    // ID Card / আইডি কার্ড
+    if (t.includes('আইডি কার্ড') || t.includes('আইডি দেখাও') || t.includes('id card') || t.includes('পরিচয়পত্র')) {
+      return {
+        type: 'navigate' as const,
+        target: 'id-card',
+        badge: '🪪 ডিজিটাল সদস্য আইডি কার্ড',
+        reply: 'ডিজিটাল সদস্য আইডি কার্ড পেজে নিয়ে যাওয়া হয়েছে।',
+      };
+    }
+
+    // Receipts / রসিদ
+    if (t.includes('রসিদ') || t.includes('রসিদে যাও') || t.includes('রসিদ দেখাও') || t.includes('receipt') || t.includes('ভাউচার রশিদ')) {
+      return {
+        type: 'navigate' as const,
+        target: 'receipts',
+        badge: '🧾 পেমেন্ট রসিদ ও ট্রানজেকশন হিস্ট্রি',
+        reply: 'সকল জমার রসিদ ও লেনদেন হিস্ট্রি পেজ ওপেন করা হয়েছে।',
+      };
+    }
+
+    // Bank Deposit / ব্যাংক জমা দাখিল
+    if (t.includes('টাকা জমা') || t.includes('ব্যাংক জমা') || t.includes('জমা দাও') || t.includes('deposit') || t.includes('চাঁদা জমা')) {
+      return {
+        type: 'navigate' as const,
+        target: 'payments',
+        badge: '💳 ব্যাংক জমা দাখিল পেজ',
+        reply: 'ব্যাংক জমা ও চাঁদা দাখিল পেজ ওপেন করা হয়েছে।',
+      };
+    }
+
+    // Members Directory / সদস্য তালিকা
+    if (t.includes('সদস্য তালিকা') || t.includes('সকল সদস্য') || t.includes('মেম্বার লিস্ট') || t.includes('members')) {
+      return {
+        type: 'navigate' as const,
+        target: 'members',
+        badge: '👥 সম্মানিত সদস্য তালিকা',
+        reply: 'সমিতির সদস্য তালিকা পেজ ওপেন করা হয়েছে।',
+      };
+    }
+
+    // Notices / নোটিশ বোর্ড
+    if (t.includes('নোটিশ') || t.includes('বিজ্ঞপ্তি') || t.includes('সার্কুলার') || t.includes('notice')) {
+      return {
+        type: 'navigate' as const,
+        target: 'notices',
+        badge: '📢 নোটিশ ও সার্কুলার বোর্ড',
+        reply: 'সোসাইটির নোটিশ বোর্ড ওপেন করা হয়েছে।',
+      };
+    }
+
+    // Accounting / অ্যাকাউন্টিং
+    if (t.includes('হিসাব খাতা') || t.includes('অ্যাকাউন্টিং') || t.includes('আয় ব্যয়') || t.includes('accounting')) {
+      return {
+        type: 'navigate' as const,
+        target: 'accounting',
+        badge: '📊 অফিসিয়াল অ্যাকাউন্টিং খতিয়ান',
+        reply: 'অফিসিয়াল অ্যাকাউন্টিং ও ভাউচার খতিয়ান ওপেন করা হয়েছে।',
+      };
+    }
+
+    // Self KYC / কেওয়াইসি
+    if (t.includes('কেওয়াইসি') || t.includes('নমিনি') || t.includes('নমিনী') || t.includes('ছবি আপডেট') || t.includes('kyc')) {
+      return {
+        type: 'modal' as const,
+        target: 'kyc',
+        badge: '🛡️ সেলফ কেওয়াইসি ও নমিনি আপডেট',
+        reply: 'প্রোফাইল ছবি ও নমিনি কেওয়াইসি আপডেট ওপেন করা হয়েছে।',
+      };
+    }
+
+    // Reports / প্রতিবেদন
+    if (t.includes('রিপোর্ট') || t.includes('প্রতিবেদন') || t.includes('reports')) {
+      return {
+        type: 'navigate' as const,
+        target: 'reports',
+        badge: '📈 সোসাইটি রিপোর্ট ও অডিট ভিউ',
+        reply: 'সোসাইটি রিপোর্ট ও পরিসংখ্যান পেজ ওপেন করা হয়েছে।',
+      };
+    }
+
+    return null;
+  };
+
   const handleSendMessage = async (textToSend?: string) => {
     const message = textToSend || inputMessage;
     if (!message.trim() && !selectedImage) return;
@@ -345,6 +453,47 @@ export const AIAssistantModal: React.FC = () => {
     const currentImage = selectedImage;
     const currentMime = imageMimeType;
     setSelectedImage(null);
+
+    // Check for Instant Voice Command Action if no image is attached
+    if (!currentImage) {
+      const voiceAction = detectVoiceIntent(message);
+      if (voiceAction) {
+        playAudioTone(587, 880); // Success action tone
+        window.dispatchEvent(
+          new CustomEvent('somobay_action', {
+            detail: {
+              type: voiceAction.type,
+              path: voiceAction.target,
+              modal: voiceAction.target,
+            },
+          })
+        );
+        if (voiceAction.type === 'navigate' && onNavigate) {
+          onNavigate(voiceAction.target);
+        }
+
+        const actionAiMsgId = 'act-' + Date.now();
+        const actionAiMsg: Message = {
+          id: actionAiMsgId,
+          sender: 'ai',
+          text: `⚡ **ভয়েস কমান্ড সম্পন্ন:**\n\n${voiceAction.badge}\n\n${voiceAction.reply}`,
+          timestamp: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
+        };
+        setMessages((prev) => [...prev, actionAiMsg]);
+
+        if (voiceAutoSpeakRef.current || isListening) {
+          voiceAutoSpeakRef.current = false;
+          speakMessage(actionAiMsgId, voiceAction.reply);
+        }
+
+        // Close assistant drawer after 1.2s so user sees the modal/page immediately
+        setTimeout(() => {
+          setIsOpen(false);
+        }, 1200);
+        return;
+      }
+    }
+
     setIsAnalyzing(true);
 
     try {

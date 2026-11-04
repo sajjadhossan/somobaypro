@@ -33,6 +33,9 @@ import { SettingsPage } from './pages/SettingsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { IdCardPage } from './pages/IdCardPage';
 import { AIAssistantModal } from './components/AIAssistantModal';
+import { PassbookModal } from './components/PassbookModal';
+import { ShareCertificateModal } from './components/ShareCertificateModal';
+import { SelfKycModal } from './components/SelfKycModal';
 import { WifiOff } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -40,6 +43,28 @@ export const App: React.FC = () => {
   const [currentPath, setCurrentPath] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
+
+  // Global modals triggered by Voice Commands or Direct Actions
+  const [globalPassbookOpen, setGlobalPassbookOpen] = useState(false);
+  const [globalShareCertOpen, setGlobalShareCertOpen] = useState(false);
+  const [globalKycOpen, setGlobalKycOpen] = useState(false);
+
+  // Listen to Voice Navigation & Smart Assistant events
+  React.useEffect(() => {
+    const handleAction = (e: any) => {
+      const detail = e.detail;
+      if (!detail) return;
+      if (detail.type === 'navigate' && detail.path) {
+        setCurrentPath(detail.path);
+      } else if (detail.type === 'modal') {
+        if (detail.modal === 'passbook') setGlobalPassbookOpen(true);
+        if (detail.modal === 'share_cert') setGlobalShareCertOpen(true);
+        if (detail.modal === 'kyc') setGlobalKycOpen(true);
+      }
+    };
+    window.addEventListener('somobay_action', handleAction);
+    return () => window.removeEventListener('somobay_action', handleAction);
+  }, []);
 
   React.useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -186,8 +211,22 @@ export const App: React.FC = () => {
         onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)}
       />
 
-      {/* Floating Somobay AI Smart Assistant */}
-      <AIAssistantModal />
+      {/* Floating Somobay AI Smart Assistant with Voice Commands */}
+      <AIAssistantModal onNavigate={setCurrentPath} />
+
+      {/* Global Modals triggered from Voice Commands or anywhere in app */}
+      {globalPassbookOpen && (
+        <PassbookModal onClose={() => setGlobalPassbookOpen(false)} />
+      )}
+      {globalShareCertOpen && (
+        <ShareCertificateModal onClose={() => setGlobalShareCertOpen(false)} />
+      )}
+      {globalKycOpen && (
+        <SelfKycModal
+          onClose={() => setGlobalKycOpen(false)}
+          onSuccess={() => setGlobalKycOpen(false)}
+        />
+      )}
     </div>
   );
 };
