@@ -4,11 +4,12 @@ import { useRealtime, useRealtimeRefresh } from '../../context/RealtimeContext';
 import { 
   CreditCard, CheckSquare, Receipt, AlertCircle, 
   CheckCircle2, Clock, QrCode, ArrowRight, UserCheck, ShieldCheck, Download, Wifi, RefreshCw, IdCard,
-  BookOpen, Camera
+  BookOpen, Camera, Award
 } from 'lucide-react';
 import { ReceiptModal } from '../../components/ReceiptModal';
 import { PassbookModal } from '../../components/PassbookModal';
 import { SelfKycModal } from '../../components/SelfKycModal';
+import { ShareCertificateModal } from '../../components/ShareCertificateModal';
 
 interface MemberDashboardProps {
   onNavigate: (path: string) => void;
@@ -22,6 +23,7 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ onNavigate }) 
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [showPassbook, setShowPassbook] = useState(false);
   const [showSelfKyc, setShowSelfKyc] = useState(false);
+  const [showShareCert, setShowShareCert] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const fetchMemberDashboard = async () => {
@@ -118,6 +120,14 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ onNavigate }) 
             >
               <Camera className="w-4 h-4 text-teal-300" />
               <span>{language === 'bn' ? 'ছবি ও নমিনি' : 'Self-KYC'}</span>
+            </button>
+            <button
+              onClick={() => setShowShareCert(true)}
+              className="flex-1 sm:flex-initial px-3.5 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl font-bold text-xs sm:text-sm border border-white/20 shadow-md backdrop-blur-md flex items-center justify-center gap-2 transition"
+              title="অফিসিয়াল সমবায় শেয়ার সনদপত্র দেখুন বা প্রিন্ট করুন"
+            >
+              <Award className="w-4 h-4 text-amber-300" />
+              <span>{language === 'bn' ? 'শেয়ার সনদ' : 'Share Cert'}</span>
             </button>
             <button
               onClick={() => onNavigate('id-card')}
@@ -339,6 +349,13 @@ export const MemberDashboard: React.FC<MemberDashboardProps> = ({ onNavigate }) 
         <SelfKycModal
           onClose={() => setShowSelfKyc(false)}
           onSuccess={fetchMemberDashboard}
+        />
+      )}
+
+      {/* Official Share Certificate Modal */}
+      {showShareCert && (
+        <ShareCertificateModal
+          onClose={() => setShowShareCert(false)}
         />
       )}
     </div>
