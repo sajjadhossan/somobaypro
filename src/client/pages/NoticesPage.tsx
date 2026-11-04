@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Bell, Plus, Calendar, AlertCircle, FileText, CheckCircle2, X } from 'lucide-react';
+import { Bell, Plus, Calendar, AlertCircle, FileText, CheckCircle2, X, Printer, ShieldCheck } from 'lucide-react';
+import { SocietyPad } from '../components/SocietyPad';
 
 export const NoticesPage: React.FC = () => {
-  const { user, language } = useAuth();
+  const { user, language, society } = useAuth();
   const [notices, setNotices] = useState<any[]>([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedNoticeForPrint, setSelectedNoticeForPrint] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [newNotice, setNewNotice] = useState({
@@ -127,16 +129,27 @@ export const NoticesPage: React.FC = () => {
               {n.content_bn}
             </p>
 
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-              <span>জারি করেছেন: সাধারণ সম্পাদক / কার্যনির্বাহী কমিটি</span>
-              {n.is_read ? (
-                <span className="text-emerald-600 font-medium flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  পঠিত
-                </span>
-              ) : (
-                <span className="text-amber-600 font-semibold">নতুন</span>
-              )}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
+              <div className="flex items-center gap-2 text-slate-500">
+                <span>জারি করেছেন: সাধারণ সম্পাদক / কার্যনির্বাহী পরিষদ</span>
+                {n.is_read ? (
+                  <span className="text-emerald-600 font-medium flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    পঠিত
+                  </span>
+                ) : (
+                  <span className="text-amber-600 font-semibold">নতুন</span>
+                )}
+              </div>
+
+              <button
+                onClick={() => setSelectedNoticeForPrint(n)}
+                className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold border border-emerald-200 transition"
+                title="সমিতির অফিশিয়াল প্যাডে প্রিন্ট করুন"
+              >
+                <Printer className="w-3.5 h-3.5 text-emerald-600" />
+                <span>অফিসিয়াল প্যাডে প্রিন্ট</span>
+              </button>
             </div>
           </div>
         ))}
@@ -227,6 +240,100 @@ export const NoticesPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Print on Official Society Pad Modal */}
+      {selectedNoticeForPrint && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/75 backdrop-blur-sm overflow-y-auto">
+          <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95">
+            {/* Top Toolbar */}
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-800 text-white print:hidden">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                <span className="font-semibold text-xs sm:text-sm">
+                  অফিসিয়াল বিজ্ঞপ্তির প্যাড প্রিভিউ ও প্রিন্ট
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold transition"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>প্রিন্ট / PDF সংরক্ষণ</span>
+                </button>
+                <button
+                  onClick={() => setSelectedNoticeForPrint(null)}
+                  className="p-1.5 rounded-lg bg-slate-700 hover:bg-red-600 text-slate-200 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body with Official Society Pad */}
+            <div className="p-3 sm:p-6 bg-slate-100 max-h-[85vh] overflow-y-auto">
+              <SocietyPad
+                title={`অফিসিয়াল বিজ্ঞপ্তি (OFFICIAL NOTICE)`}
+                refNo={selectedNoticeForPrint.notice_number}
+                date={selectedNoticeForPrint.publish_date}
+                verificationCode={`VER-NOTICE-${selectedNoticeForPrint.id}-${new Date().getFullYear()}`}
+                printedBy={`${user?.fullNameBn || 'সাধারণ সম্পাদক'} (সমবায় প্রশাসন)`}
+                approvedBy="মাহমুদুল হাসান চৌধুরী (সাধারণ সম্পাদক) ও ড. আবুল কালাম আজাদ (সভাপতি)"
+                showSeals={true}
+              >
+                <div className="py-4 space-y-4">
+                  {/* Notice Priority & Recipient Header */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-200 text-xs">
+                    <div>
+                      <span className="text-slate-500 font-semibold">বিজ্ঞপ্তি ধরন: </span>
+                      <span className="font-bold text-emerald-800 uppercase">
+                        {selectedNoticeForPrint.priority === 'urgent' ? 'জরুরি বিজ্ঞপ্তি (URGENT NOTICE)' : 'সাধারণ অফিশিয়াল নোটিশ'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-semibold">প্রাপক: </span>
+                      <span className="font-bold text-slate-800">
+                        {selectedNoticeForPrint.target_role === 'all'
+                          ? 'সমিতির সকল সম্মানিত সদস্য ও কর্মকর্তা'
+                          : selectedNoticeForPrint.target_role === 'general_member'
+                          ? 'সকল সাধারণ সদস্যবৃন্দ'
+                          : 'কার্যনির্বাহী পরিষদ সদস্যবৃন্দ'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Notice Subject */}
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <span className="text-xs text-slate-500 block">বিষয় / Subject:</span>
+                    <h3 className="text-base sm:text-lg font-black text-slate-900 mt-1">
+                      {selectedNoticeForPrint.title_bn}
+                    </h3>
+                    {selectedNoticeForPrint.title_en && (
+                      <p className="text-xs font-semibold text-slate-600 font-sans mt-0.5">
+                        {selectedNoticeForPrint.title_en}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Notice Detailed Content */}
+                  <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-3">
+                    <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      বিজ্ঞপ্তির বিবরণ ও বিস্তারিত নির্দেশনা:
+                    </p>
+                    <div className="text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-line">
+                      {selectedNoticeForPrint.content_bn}
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-900 leading-relaxed">
+                    <strong>দৃষ্টি আকর্ষণ:</strong> এই বিজ্ঞপ্তিটি সমিতির কার্যনির্বাহী পরিষদের অনুমোদনে প্রাতিষ্ঠানিক ডিজিটাল পোর্টালে প্রকাশ করা হয়েছে। সকল সদস্যকে যথাযথ নির্দেশনা অনুসরণের অনুরোধ করা হচ্ছে।
+                  </div>
+                </div>
+              </SocietyPad>
+            </div>
           </div>
         </div>
       )}

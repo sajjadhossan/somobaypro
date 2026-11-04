@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   ShieldAlert, Bell, Globe, LogOut, User as UserIcon, 
-  Menu, X, CheckCircle, ChevronDown, Building2, Plus, Sparkles 
+  Menu, X, CheckCircle, ChevronDown, Building2, Plus, Sparkles, PenTool 
 } from 'lucide-react';
+import { SignaturePadModal } from './SignaturePadModal';
 
 interface NavbarProps {
   onMenuToggle?: () => void;
@@ -16,6 +17,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
   const [showSocietyHub, setShowSocietyHub] = useState(false);
   const [societiesList, setSocietiesList] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
 
   const fetchSocieties = async () => {
@@ -275,6 +277,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
               </div>
             )}
 
+            {/* Digital Signature Setup Button for Officials */}
+            {user && ['super_admin', 'president', 'general_secretary', 'treasurer', 'admin'].includes(user.role) && (
+              <button
+                onClick={() => setShowSignatureModal(true)}
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 transition"
+                title="ডিজিটাল স্বাক্ষর ও সিল সেটআপ করুন"
+              >
+                <PenTool className="w-3.5 h-3.5 text-emerald-700" />
+                <span>স্বাক্ষর সেটআপ</span>
+              </button>
+            )}
+
             {/* User Profile / Logout */}
             {user ? (
               <div className="flex items-center gap-2">
@@ -303,6 +317,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
           </div>
         </div>
       </div>
+
+      {/* Official Signature Drawing Modal */}
+      <SignaturePadModal
+        isOpen={showSignatureModal}
+        onClose={() => setShowSignatureModal(false)}
+        officialRole={user?.role}
+        officialName={user?.fullNameBn}
+        memberId={user?.memberId}
+      />
     </header>
   );
 };

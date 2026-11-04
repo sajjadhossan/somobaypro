@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   Calendar, Plus, MapPin, Clock, FileText, CheckCircle2, 
-  Users, AlertCircle, X 
+  Users, AlertCircle, X, Printer, ShieldCheck 
 } from 'lucide-react';
+import { SocietyPad } from '../components/SocietyPad';
 
 export const MeetingsPage: React.FC = () => {
-  const { user, language } = useAuth();
+  const { user, language, society } = useAuth();
   const [meetings, setMeetings] = useState<any[]>([]);
   const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
+  const [selectedMeetingForPad, setSelectedMeetingForPad] = useState<any>(null);
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -133,10 +135,19 @@ export const MeetingsPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="pt-2 flex justify-end">
+              <div className="pt-2 flex items-center justify-between border-t border-slate-100">
+                <button
+                  onClick={() => setSelectedMeetingForPad(m)}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold border border-emerald-200 transition"
+                  title="অফিসিয়াল প্যাডে কার্যবিবরণী ও রেজুলেশন প্রিন্ট করুন"
+                >
+                  <Printer className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>প্যাডে রেজুলেশন প্রিন্ট</span>
+                </button>
+
                 <button
                   onClick={() => setSelectedMeeting(m)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-emerald-100 text-slate-700 hover:text-emerald-900 rounded-lg text-xs font-semibold transition"
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition"
                 >
                   পূর্ণ বিবরণ দেখুন
                 </button>
@@ -294,6 +305,101 @@ export const MeetingsPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Print Meeting Resolution on Official Society Pad Modal */}
+      {selectedMeetingForPad && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/75 backdrop-blur-sm overflow-y-auto">
+          <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95">
+            {/* Top Toolbar */}
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-800 text-white print:hidden">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                <span className="font-semibold text-xs sm:text-sm">
+                  অফিসিয়াল সভার কার্যবিবরণী ও রেজুলেশন প্যাড
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-xs font-semibold transition"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>প্রিন্ট / PDF সংরক্ষণ</span>
+                </button>
+                <button
+                  onClick={() => setSelectedMeetingForPad(null)}
+                  className="p-1.5 rounded-lg bg-slate-700 hover:bg-red-600 text-slate-200 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body with Official Society Pad */}
+            <div className="p-3 sm:p-6 bg-slate-100 max-h-[85vh] overflow-y-auto">
+              <SocietyPad
+                title={`সভার কার্যবিবরণী ও রেজুলেশন (MEETING MINUTES & RESOLUTIONS)`}
+                refNo={`PKSS/MTG/${new Date().getFullYear()}/${selectedMeetingForPad.id}`}
+                date={selectedMeetingForPad.date_time ? new Date(selectedMeetingForPad.date_time).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]}
+                verificationCode={`VER-RES-${selectedMeetingForPad.id}-${new Date().getFullYear()}`}
+                printedBy={`${user?.fullNameBn || 'সাধারণ সম্পাদক'} (সমবায় প্রশাসন)`}
+                approvedBy="মাহমুদুল হাসান চৌধুরী (সাধারণ সম্পাদক) ও ড. আবুল কালাম আজাদ (সভাপতি)"
+                showSeals={true}
+              >
+                <div className="py-4 space-y-4">
+                  {/* Meeting Meta Header */}
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-slate-500 block">সভার শিরোনাম:</span>
+                      <strong className="text-sm text-slate-900">{selectedMeetingForPad.title}</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">সভার ধরন:</span>
+                      <strong className="uppercase text-emerald-800">{selectedMeetingForPad.meeting_type} MEETING</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">তারিখ ও সময়:</span>
+                      <span className="font-mono text-slate-800">{new Date(selectedMeetingForPad.date_time).toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block">সভার স্থান:</span>
+                      <span className="text-slate-800">{selectedMeetingForPad.location}</span>
+                    </div>
+                  </div>
+
+                  {/* Agendas */}
+                  <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-2">
+                    <span className="text-xs font-bold text-slate-700 block uppercase">আলোচ্যসূচি (Meeting Agendas):</span>
+                    <p className="text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-line">
+                      {selectedMeetingForPad.agenda}
+                    </p>
+                  </div>
+
+                  {/* Minutes */}
+                  {selectedMeetingForPad.minutes && (
+                    <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-2">
+                      <span className="text-xs font-bold text-slate-700 block uppercase">সভার কার্যবিবরণী (Discussion & Minutes):</span>
+                      <p className="text-xs sm:text-sm text-slate-800 leading-relaxed whitespace-pre-line">
+                        {selectedMeetingForPad.minutes}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Official Resolutions */}
+                  <div className="p-4 bg-emerald-50 border-2 border-emerald-500 rounded-xl space-y-2">
+                    <span className="text-xs font-bold text-emerald-900 block uppercase tracking-wide">
+                      সর্বসম্মত সিদ্ধান্ত ও অনুমোদিত রেজুলেশন (Unanimous Decisions & Resolutions):
+                    </span>
+                    <p className="text-xs sm:text-sm text-emerald-950 font-medium leading-relaxed whitespace-pre-line">
+                      {selectedMeetingForPad.resolutions || 'উপস্থিত সকল সদস্যের সম্মতিক্রমে আলোচ্যসূচি গৃহীত ও অনুমোদিত হইলো।'}
+                    </p>
+                  </div>
+                </div>
+              </SocietyPad>
+            </div>
           </div>
         </div>
       )}
