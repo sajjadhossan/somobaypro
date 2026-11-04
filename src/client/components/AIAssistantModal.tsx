@@ -76,18 +76,41 @@ export const AIAssistantModal: React.FC = () => {
     fetchAiStatus();
   }, []);
 
+  // Voice Silence Timer & Audio Cue Helper
+  const silenceTimerRef = useRef<any>(null);
+
+  const playAudioTone = (f1: number, f2: number) => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f1, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(f2, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    } catch {}
+  };
+
   // Initialize Speech Recognition (Web Speech API)
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = false;
+      recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'bn-BD';
 
       recognition.onstart = () => {
         setIsListening(true);
         lastVoiceTranscriptRef.current = '';
+        playAudioTone(523, 784); // Mic ON chime
       };
 
       recognition.onresult = (event: any) => {
@@ -96,17 +119,28 @@ export const AIAssistantModal: React.FC = () => {
           .join('');
         setInputMessage(transcript);
         lastVoiceTranscriptRef.current = transcript;
+
+        // Auto-submit after 1.8 seconds of silence
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = setTimeout(() => {
+          if (recognitionRef.current) {
+            recognitionRef.current.stop();
+          }
+        }, 1800);
       };
 
       recognition.onerror = (event: any) => {
         console.warn('Speech recognition error:', event.error);
         setIsListening(false);
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
       };
 
       recognition.onend = () => {
         setIsListening(false);
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
         const spokenText = lastVoiceTranscriptRef.current?.trim();
         if (spokenText && spokenText.length > 1) {
+          playAudioTone(784, 1046); // Mic OFF chime
           lastVoiceTranscriptRef.current = '';
           voiceAutoSpeakRef.current = true;
           handleSendMessage(spokenText);
@@ -121,6 +155,9 @@ export const AIAssistantModal: React.FC = () => {
     return () => {
       if (recognitionRef.current) {
         recognitionRef.current.abort();
+      }
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
       }
     };
   }, []);
@@ -236,9 +273,32 @@ export const AIAssistantModal: React.FC = () => {
     }
 
     window.speechSynthesis.cancel();
-    const clean = text.replace(/[*#_`]/g, '');
+    // Clean markdown asterisks, backticks, hashes, and formatting
+    const clean = text
+      .replace(/[*#_`~>]/g, '')
+      .replace(/https?:\/\/\S+/g, '')
+      .replace(/\n\s*\n/g, '. ');
+
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.lang = 'bn-BD';
+    utterance.rate = 0.95;
+    utterance.pitch = 1.0;
+
+    // Search for best native Bengali voice
+    try {
+      const voices = window.speechSynthesis.getVoices();
+      const bnVoice = voices.find(
+        (v) =>
+          v.lang.toLowerCase().startsWith('bn') ||
+          v.lang.toLowerCase().includes('bd') ||
+          v.name.toLowerCase().includes('bangla') ||
+          v.name.toLowerCase().includes('bengali')
+      );
+      if (bnVoice) {
+        utterance.voice = bnVoice;
+      }
+    } catch {}
+
     utterance.onend = () => setCurrentlySpeakingId(null);
     utterance.onerror = () => setCurrentlySpeakingId(null);
     setCurrentlySpeakingId(id);
@@ -622,19 +682,24 @@ export const AIAssistantModal: React.FC = () => {
             </div>
           )}
 
-          {/* Voice Listening Active Indicator Banner */}
+          {/* Voice Listening Active Wave Banner */}
           {isListening && (
-            <div className="px-3 py-1.5 bg-red-50 border-t border-red-200 text-red-700 text-xs flex items-center justify-between animate-pulse">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping" />
-                <span className="font-bold">ভয়েস শুনছি... মুখে বাংলায় বলুন (Listening...)</span>
+            <div className="px-3.5 py-2 bg-gradient-to-r from-red-500/10 via-rose-500/15 to-emerald-500/10 border-t border-red-300 text-red-700 text-xs flex items-center justify-between animate-pulse">
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-0.5 h-4">
+                  <span className="w-1 bg-red-600 rounded-full animate-[bounce_0.6s_infinite_100ms] h-3" />
+                  <span className="w-1 bg-red-600 rounded-full animate-[bounce_0.6s_infinite_200ms] h-4" />
+                  <span className="w-1 bg-red-600 rounded-full animate-[bounce_0.6s_infinite_300ms] h-2" />
+                  <span className="w-1 bg-red-600 rounded-full animate-[bounce_0.6s_infinite_400ms] h-4" />
+                </div>
+                <span className="font-bold text-slate-900 text-[11px]">শুনছি... বাংলায় স্পষ্ট বলুন (বলার পর অটো সেন্ড হবে)</span>
               </div>
               <button
                 type="button"
                 onClick={toggleListening}
-                className="text-[11px] bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded font-bold"
+                className="text-[10px] bg-red-600 hover:bg-red-700 text-white px-2 py-0.5 rounded-lg font-bold shadow-xs transition"
               >
-                সম্পন্ন
+                শেষ করুন
               </button>
             </div>
           )}

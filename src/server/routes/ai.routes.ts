@@ -153,43 +153,57 @@ Answer helpfully in Bengali.`;
     },
   };
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(requestBody),
-  });
+  const candidateModels = Array.from(new Set([model || 'gemini-3.5-flash', 'gemini-3.5-flash', 'gemini-3-flash-preview', 'gemini-3.5-flash-lite']));
+  let lastError: any = null;
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini API Error (${response.status}): ${errorText}`);
-  }
-
-  const data = await response.json();
-  const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'কোনো প্রতিক্রিয়া পাওয়া যায়নি।';
-
-  // Check for JSON draft block
-  let draftSubmission: any = null;
-  const jsonMatch = candidateText.match(/```json\s*([\s\S]*?)\s*```/);
-  if (jsonMatch && jsonMatch[1]) {
+  for (const m of candidateModels) {
     try {
-      const parsed = JSON.parse(jsonMatch[1]);
-      if (parsed.hasDraft && parsed.draftSubmission) {
-        draftSubmission = parsed.draftSubmission;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${apiKey}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.warn(`Model ${m} returned ${response.status}: ${errorText.slice(0, 150)}`);
+        lastError = new Error(`Gemini API (${m} - ${response.status}): ${errorText}`);
+        continue;
       }
-    } catch (e) {
-      // JSON parse error, ignore
+
+      const data = await response.json();
+      const candidateText = data.candidates?.[0]?.content?.parts?.[0]?.text || 'কোনো প্রতিক্রিয়া পাওয়া যায়নি।';
+
+      // Check for JSON draft block
+      let draftSubmission: any = null;
+      const jsonMatch = candidateText.match(/```json\s*([\s\S]*?)\s*```/);
+      if (jsonMatch && jsonMatch[1]) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1]);
+          if (parsed.hasDraft && parsed.draftSubmission) {
+            draftSubmission = parsed.draftSubmission;
+          }
+        } catch (e) {
+          // JSON parse error, ignore
+        }
+      }
+
+      // Clean candidate text for display (remove raw json block)
+      const cleanReply = candidateText.replace(/```json[\s\S]*?```/, '').trim();
+
+      return {
+        reply: cleanReply,
+        draftSubmission,
+        modelUsed: m,
+        geminiActive: true,
+      };
+    } catch (err) {
+      lastError = err;
     }
   }
 
-  // Clean candidate text for display (remove raw json block if needed or keep explanation)
-  const cleanReply = candidateText.replace(/```json[\s\S]*?```/, '').trim();
-
-  return {
-    reply: cleanReply,
-    draftSubmission,
-    modelUsed: model,
-    geminiActive: true,
-  };
+  throw lastError || new Error('সবগুলো জেমিনি মডেলের অনুরোধ ব্যর্থ হয়েছে।');
 }
 
 // GET /api/ai/status - Check if Gemini API is active
