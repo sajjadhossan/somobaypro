@@ -9,3 +9,5 @@ uploads/*
 .DS_Store
 *.log
 
+.neon
+.env.local

@@ -21,6 +21,7 @@ import settingsRouter from './routes/settings.routes';
 import backupRouter from './routes/backup.routes';
 import aiRouter from './routes/ai.routes';
 import realtimeRouter from './routes/realtime.routes';
+import neonRouter from './routes/neon.routes';
 import { BackupService } from './services/backup.service';
 
 const app = express();
@@ -55,6 +56,7 @@ app.use('/api/settings', settingsRouter);
 app.use('/api/backup', backupRouter);
 app.use('/api/ai', aiRouter);
 app.use('/api/realtime', realtimeRouter);
+app.use('/api/neon', neonRouter);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
