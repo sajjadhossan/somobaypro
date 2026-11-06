@@ -64,29 +64,13 @@ jobs:
           grep -E "versionCode|versionName" android/app/build.gradle
 
       - name: 🔑 Setup Release Keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "✅ Using production release keystore from GitHub Secrets"
-            echo "$KEYSTORE_BASE64" | base64 -d > android/app/somobaypro-release.keystore
-            # Inject signing config into build.gradle
-            cat >> android/app/build.gradle << 'SIGNINGEOF'
-
-          android.signingConfigs {
-              productionRelease {
-                  storeFile file("somobaypro-release.keystore")
-                  storePassword "SomobayPro@2024!"
-                  keyAlias "somobaypro"
-                  keyPassword "SomobayPro@2024!"
-              }
-          }
-          android.buildTypes.release.signingConfig = android.signingConfigs.productionRelease
-          SIGNINGEOF
-            echo "✅ Signing config injected for production keystore"
-          else
-            echo "⚠️ No KEYSTORE_BASE64 secret found — using debug keystore (for initial setup)"
-          fi
+          echo "✅ Setting up production release keystore for consistent APK signing..."
+          cat << 'KEYSTOREEOF' | base64 -d > android/app/somobaypro-release.keystore
+          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
+          KEYSTOREEOF
+          echo "✅ Keystore restored from embedded data"
+          ls -la android/app/somobaypro-release.keystore
 
       - name: 🔨 Build Android Release APK
         working-directory: android
