@@ -34,7 +34,7 @@ const uploadPhoto = multer({
 
 // GET /api/members (List all members with filters)
 router.get('/', authenticate, (req: Request, res: Response) => {
-  const { status, type, search, limit = 100, offset = 0 } = req.query;
+  const { status, type, search, societyId, limit = 100, offset = 0 } = req.query;
 
   let query = `
     SELECT m.*, u.role, u.account_status,
@@ -46,14 +46,27 @@ router.get('/', authenticate, (req: Request, res: Response) => {
   `;
   const params: any[] = [];
 
+  // Multi-society isolation: Non-super-admins strictly see only their own society members
+  if (req.user!.role !== 'super_admin') {
+    query += ` AND m.society_id = ?`;
+    params.push(req.user!.societyId || 1);
+  } else if (societyId) {
+    query += ` AND m.society_id = ?`;
+    params.push(Number(societyId));
+  }
+
   // General Members can only view the member directory in a limited way (or Advisors / Officials see full directory)
   if (req.user!.role === 'general_member') {
     // Limited public member directory (hide sensitive NID, emergency contacts)
     query = `
-      SELECT m.member_id, m.full_name_bn, m.full_name_en, m.photo_url, m.designation, m.membership_type, m.joining_date, m.membership_status
+      SELECT m.member_id, m.full_name_bn, m.full_name_en, m.photo_url, m.designation, m.membership_type, m.joining_date, m.membership_status, m.society_id
       FROM members m
       WHERE m.membership_status = 'active'
     `;
+    if (req.user!.societyId) {
+      query += ` AND m.society_id = ?`;
+      params.push(req.user!.societyId);
+    }
   } else {
     if (status) {
       query += ` AND m.membership_status = ?`;
@@ -376,9 +389,9 @@ router.post('/', authenticate, (req: Request, res: Response) => {
 });
 
 // PATCH /api/members/:memberId/status (Approve/Suspend/Activate)
-router.patch('/:memberId/status', authenticate, requireRole(['super_admin', 'admin', 'general_secretary', 'president']), (req: Request, res: Response) => {
+router.patch('/:memberId/status', authenticate, requireRole(['super_admin', 'admin', 'general_secretary', 'president']), async (req: Request, res: Response) => {
   const { memberId } = req.params;
-  const { status, remarks } = req.body;
+  const { status, role, designation, remarks } = req.body;
 
   const validStatuses = ['pending', 'active', 'suspended', 'inactive', 'resigned', 'terminated'];
   if (!validStatuses.includes(status)) {
@@ -390,20 +403,48 @@ router.patch('/:memberId/status', authenticate, requireRole(['super_admin', 'adm
     return res.status(404).json({ error: 'Member not found.' });
   }
 
+  // Multi-society permission check: Non-super-admins can only manage their own society's members!
+  if (req.user!.role !== 'super_admin' && member.society_id && member.society_id !== req.user!.societyId) {
+    return res.status(403).json({ error: 'অন্য সমিতির সদস্যের স্ট্যাটাস বা পদবী পরিবর্তন করার অনুমতি নেই।' });
+  }
+
+  const validRoles = ['super_admin', 'admin', 'president', 'general_secretary', 'treasurer', 'advisor', 'general_member'];
+  const newRole = role && validRoles.includes(role) ? role : null;
+  const newDesignation = designation || (newRole ? (
+    newRole === 'president' ? 'সভাপতি' :
+    newRole === 'general_secretary' ? 'সাধারণ সম্পাদক' :
+    newRole === 'treasurer' ? 'কোষাধ্যক্ষ' :
+    newRole === 'advisor' ? 'উপদেষ্টা' :
+    newRole === 'admin' ? 'এডমিন' : 'সাধারণ সদস্য'
+  ) : null);
+
   const transaction = db.transaction(() => {
     db.prepare(`
       UPDATE members 
-      SET membership_status = ?, remarks = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+      SET membership_status = ?, 
+          designation = COALESCE(?, designation),
+          remarks = ?, 
+          approved_by = ?, 
+          approved_at = CURRENT_TIMESTAMP, 
+          updated_at = CURRENT_TIMESTAMP 
       WHERE member_id = ?
-    `).run(status, remarks || null, req.user!.memberId, memberId);
+    `).run(status, newDesignation, remarks || null, req.user!.memberId, memberId);
 
-    // Sync account status
+    // Sync account status and role in users table
     const accountStatus = status === 'active' ? 'active' : status === 'suspended' ? 'suspended' : 'deactivated';
-    db.prepare(`
-      UPDATE users 
-      SET account_status = ?, updated_at = CURRENT_TIMESTAMP 
-      WHERE member_id = ?
-    `).run(accountStatus, memberId);
+    if (newRole) {
+      db.prepare(`
+        UPDATE users 
+        SET account_status = ?, role = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE member_id = ?
+      `).run(accountStatus, newRole, memberId);
+    } else {
+      db.prepare(`
+        UPDATE users 
+        SET account_status = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE member_id = ?
+      `).run(accountStatus, memberId);
+    }
 
     // If activated, generate current month subscription if not exists
     if (status === 'active') {
@@ -429,14 +470,30 @@ router.patch('/:memberId/status', authenticate, requireRole(['super_admin', 'adm
       action: 'MEMBER_STATUS_UPDATE',
       entityType: 'members',
       entityId: memberId,
-      oldValues: { status: member.membership_status },
-      newValues: { status, remarks },
+      oldValues: { status: member.membership_status, designation: member.designation },
+      newValues: { status, role: newRole, designation: newDesignation, remarks },
     });
   });
 
   transaction();
 
-  return res.json({ message: `Member ${memberId} status successfully updated to ${status}.` });
+  // Also sync role in Neon PostgreSQL neon_auth.user if member has email
+  if (member.email && newRole) {
+    try {
+      const { getNeonSql } = await import('../services/neon.js');
+      const sql = getNeonSql();
+      await sql`UPDATE neon_auth.user SET role = ${newRole} WHERE LOWER(email) = ${member.email.trim().toLowerCase()};`;
+    } catch (e) {
+      console.warn('Could not sync role to Neon Auth:', e);
+    }
+  }
+
+  return res.json({ 
+    message: `সদস্য ${memberId} সফলভাবে ${status === 'active' ? 'অনুমোদিত' : status} হয়েছে।`,
+    status,
+    role: newRole,
+    designation: newDesignation,
+  });
 });
 
 export default router;

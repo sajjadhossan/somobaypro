@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   Lock, Phone, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, 
-  UserPlus, QrCode, AlertCircle, Sparkles, Building2, User 
+  UserPlus, QrCode, AlertCircle, CheckCircle, Sparkles, Building2, User 
 } from 'lucide-react';
 
 interface LoginProps {
@@ -17,16 +17,31 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
   const [neonName, setNeonName] = useState('');
   const [neonEmail, setNeonEmail] = useState('');
   const [neonPassword, setNeonPassword] = useState('');
+  const [selectedSocietyId, setSelectedSocietyId] = useState<number>(1);
+  const [societiesList, setSocietiesList] = useState<any[]>([]);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/settings/public-societies')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.societies && Array.isArray(data.societies)) {
+          setSocietiesList(data.societies);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
     setLoading(true);
 
     try {
@@ -52,12 +67,13 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
   const handleNeonSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
     setLoading(true);
 
     try {
       const endpoint = neonIsSignUp ? '/api/neon/auth/signup' : '/api/neon/auth/signin';
       const body = neonIsSignUp
-        ? { email: neonEmail, password: neonPassword, name: neonName }
+        ? { email: neonEmail, password: neonPassword, name: neonName, societyId: selectedSocietyId }
         : { email: neonEmail, password: neonPassword };
 
       const res = await fetch(endpoint, {
@@ -67,7 +83,10 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
       });
 
       const data = await res.json();
-      if (res.ok && data.success && data.token) {
+      if (data.pendingApproval) {
+        setSuccessMessage(data.message || 'আপনার নিবন্ধন আবেদনটি সফলভাবে জমা হয়েছে! সমিতির সভাপতি বা এডমিন অনুমোদন (Approve) করলে আপনি লগইন করতে পারবেন।');
+        setNeonIsSignUp(false);
+      } else if (res.ok && data.success && data.token) {
         login(data.token, data.user);
       } else {
         setError(data.error || 'Neon Auth authentication failed.');
@@ -153,6 +172,13 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
             <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl border border-red-200 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 text-red-600 mt-0.5" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="p-3 bg-emerald-50 text-emerald-800 text-xs rounded-xl border border-emerald-200 flex items-start gap-2">
+              <CheckCircle className="w-4 h-4 shrink-0 text-emerald-600 mt-0.5" />
+              <span>{successMessage}</span>
             </div>
           )}
 
@@ -272,22 +298,48 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
 
               {/* Name (Only on Sign Up) */}
               {neonIsSignUp && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    {language === 'bn' ? 'আপনার পূর্ণ নাম' : 'Full Name'}
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input
-                      type="text"
-                      value={neonName}
-                      onChange={(e) => setNeonName(e.target.value)}
-                      placeholder="e.g. সাদমান সাকিব"
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
-                      required={neonIsSignUp}
-                    />
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      {language === 'bn' ? 'আপনার পূর্ণ নাম' : 'Full Name'}
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        value={neonName}
+                        onChange={(e) => setNeonName(e.target.value)}
+                        placeholder="e.g. সাদমান সাকিব"
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
+                        required={neonIsSignUp}
+                      />
+                    </div>
                   </div>
-                </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      {language === 'bn' ? 'কোন সমিতির সদস্য হতে আবেদন করছেন?' : 'Select Society to Join'}
+                    </label>
+                    <div className="relative">
+                      <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <select
+                        value={selectedSocietyId}
+                        onChange={(e) => setSelectedSocietyId(Number(e.target.value))}
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-medium text-slate-800 focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
+                      >
+                        {societiesList.length > 0 ? (
+                          societiesList.map((soc) => (
+                            <option key={soc.id} value={soc.id}>
+                              {soc.name_bn} ({soc.short_name || soc.name_en})
+                            </option>
+                          ))
+                        ) : (
+                          <option value={1}>প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড</option>
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                </>
               )}
 
               {/* Email */}

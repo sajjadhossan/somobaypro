@@ -501,7 +501,20 @@ export const SettingsPage: React.FC = () => {
                   <h3 className="font-bold text-slate-900 text-sm mt-1">{soc.name_bn}</h3>
                   <p className="text-xs text-slate-500">{soc.name_en}</p>
                   <p className="text-[11px] text-slate-400 font-mono">নিবন্ধন: {soc.reg_no || 'নিবন্ধিত'}</p>
-                  <p className="text-[11px] text-slate-600">মাসিক চাঁদা: ৳{soc.monthly_subscription_default}/মাস</p>
+                  <p className="text-[11px] text-slate-700 font-semibold mt-1">
+                    👑 সভাপতি: {soc.president_name || soc.president_email || 'সুপার এডমিন (স্বত্বাধিকারী)'}
+                  </p>
+                  <div className="flex gap-2 pt-1 text-[11px]">
+                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold">
+                      {soc.active_members_count || 0} সদস্য
+                    </span>
+                    {Number(soc.pending_members_count || 0) > 0 && (
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-bold animate-pulse">
+                        {soc.pending_members_count} অপেক্ষমাণ
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-600">ডিফল্ট চাঁদা: ৳{soc.monthly_subscription_default}/মাস</p>
                 </div>
 
                 <div>

@@ -82,9 +82,27 @@ router.put('/permissions', authenticate, requireRole(['super_admin']), (req: Req
   });
 });
 
-// GET /api/settings/societies (List all societies managed in SomobayPro)
+// GET /api/settings/public-societies (Public endpoint for registration dropdown)
+router.get('/public-societies', (req: Request, res: Response) => {
+  const societies = db.prepare(`
+    SELECT id, name_bn, name_en, short_name, address 
+    FROM societies 
+    WHERE is_active = 1 
+    ORDER BY id ASC
+  `).all();
+  return res.json({ societies });
+});
+
+// GET /api/settings/societies (List all societies managed in SomobayPro with counts)
 router.get('/societies', authenticate, requireRole(['super_admin', 'admin', 'president']), (req: Request, res: Response) => {
-  const societies = db.prepare(`SELECT * FROM societies ORDER BY id ASC`).all();
+  const societies = db.prepare(`
+    SELECT s.*,
+      (SELECT COUNT(*) FROM members WHERE society_id = s.id AND membership_status = 'active') as active_members_count,
+      (SELECT COUNT(*) FROM members WHERE society_id = s.id AND membership_status = 'pending') as pending_members_count,
+      (SELECT u.mobile FROM users u WHERE u.society_id = s.id AND u.role = 'president' LIMIT 1) as president_mobile
+    FROM societies s 
+    ORDER BY s.id ASC
+  `).all();
   return res.json({ societies });
 });
 

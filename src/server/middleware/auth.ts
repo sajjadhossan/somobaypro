@@ -13,6 +13,7 @@ export interface AuthUser {
   permissions: string[];
   fullNameBn?: string;
   fullNameEn?: string;
+  societyId?: number;
 }
 
 declare global {
@@ -31,6 +32,7 @@ export function generateToken(user: AuthUser, expiresIn: string = '7d') {
       mobile: user.mobile,
       role: user.role,
       permissions: user.permissions,
+      societyId: user.societyId || 1,
     },
     JWT_SECRET,
     { expiresIn } as any
@@ -50,7 +52,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
     // Check user in database
     const user = db.prepare(`
       SELECT u.id, u.member_id as memberId, u.mobile, u.role, u.account_status as accountStatus, 
-             u.permissions, m.full_name_bn as fullNameBn, m.full_name_en as fullNameEn
+             u.permissions, u.society_id as societyId, m.full_name_bn as fullNameBn, m.full_name_en as fullNameEn
       FROM users u
       LEFT JOIN members m ON u.member_id = m.member_id
       WHERE u.id = ?
@@ -80,6 +82,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
       permissions: parsedPermissions,
       fullNameBn: user.fullNameBn,
       fullNameEn: user.fullNameEn,
+      societyId: user.societyId || 1,
     };
 
     next();

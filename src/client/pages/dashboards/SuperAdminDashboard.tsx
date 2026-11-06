@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { 
   Users, CreditCard, CheckSquare, Receipt, BookOpen, 
-  ShieldCheck, AlertCircle, TrendingUp, Download, Plus, ArrowRight 
+  ShieldCheck, AlertCircle, TrendingUp, Download, Plus, ArrowRight, Building2 
 } from 'lucide-react';
 
 interface SuperAdminDashboardProps {
@@ -12,16 +12,26 @@ interface SuperAdminDashboardProps {
 export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onNavigate }) => {
   const { society, language } = useAuth();
   const [metrics, setMetrics] = useState<any>(null);
+  const [societiesList, setSocietiesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchOverview = async () => {
     try {
+      const token = localStorage.getItem('pkss_token');
       const res = await fetch('/api/settings/overview', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('pkss_token')}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data = await res.json();
         setMetrics(data);
+      }
+
+      const socRes = await fetch('/api/settings/societies', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (socRes.ok) {
+        const sData = await socRes.json();
+        setSocietiesList(sData.societies || []);
       }
     } catch (err) {
       console.error(err);
@@ -135,6 +145,82 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onNavi
             ৳{Number(metrics?.bankBalances?.total_bank_balance || 0).toLocaleString('en-IN')}
           </p>
           <p className="text-[11px] text-slate-500">সোনালী ও ডাচ-বাংলা ব্যাংক</p>
+        </div>
+      </div>
+
+      {/* Multi-Society Network Hub & Client Overview */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div>
+            <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-emerald-600" />
+              <span>{language === 'bn' ? 'সমিতি নেটওয়ার্ক ও ক্লায়েন্ট হাব' : 'Multi-Society Client Network'}</span>
+            </h2>
+            <p className="text-xs text-slate-500">
+              প্ল্যাটফর্মের আওতাধীন সকল সমবায় সমিতি, তাদের সভাপতি ও সদস্য সংখ্যা
+            </p>
+          </div>
+          <button
+            onClick={() => onNavigate('settings')}
+            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 self-start sm:self-auto"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>{language === 'bn' ? 'নতুন সমিতি যোগ / সেল' : 'Add New Client Society'}</span>
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {societiesList.map((soc) => {
+            const isCurrent = society?.name_bn === soc.name_bn;
+            return (
+              <div
+                key={soc.id}
+                className={`p-4 rounded-2xl border transition space-y-3 ${
+                  isCurrent ? 'border-2 border-emerald-500 bg-emerald-50/30 shadow-sm' : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-slate-400">ID: #{soc.id}</span>
+                  {isCurrent ? (
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-bold">
+                      সক্রিয় প্রোফাইল
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-medium">
+                      সংরক্ষিত ক্লায়েন্ট
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm line-clamp-1">{soc.name_bn}</h3>
+                  <p className="text-xs text-slate-500 line-clamp-1">{soc.name_en || soc.short_name}</p>
+                  <p className="text-[11px] text-slate-700 font-semibold mt-1">
+                    👑 সভাপতি: {soc.president_name || soc.president_email || 'সুপার এডমিন (স্বত্বাধিকারী)'}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs pt-1 border-t border-slate-100">
+                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md font-bold text-[11px]">
+                    {soc.active_members_count || 0} সদস্য
+                  </span>
+                  {Number(soc.pending_members_count || 0) > 0 && (
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-md font-bold text-[11px] animate-pulse">
+                      {soc.pending_members_count} অপেক্ষমাণ
+                    </span>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => onNavigate('settings')}
+                  className="w-full py-2 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1"
+                >
+                  <span>পরিচালনা করুন</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 

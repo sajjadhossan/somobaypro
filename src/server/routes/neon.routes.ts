@@ -53,9 +53,29 @@ router.get('/auth/jwks', async (req: Request, res: Response) => {
 
 import { db } from '../db/index.js';
 
-function syncNeonUserToDatabase(email: string, name?: string) {
+async function syncNeonUserToDatabase(email: string, name?: string, requestedSocietyId: number = 1) {
   const cleanEmail = email.trim().toLowerCase();
-  let user = db.prepare(`SELECT * FROM users WHERE email = ? OR mobile = ?`).get(cleanEmail, cleanEmail) as any;
+
+  // 1. Check if user has an assigned role in Neon's neon_auth.user
+  let neonRole = 'general_member';
+  try {
+    const { getNeonSql } = await import('../services/neon.js');
+    const sql = getNeonSql();
+    const rows = await sql`SELECT role FROM neon_auth.user WHERE LOWER(email) = ${cleanEmail} LIMIT 1;`;
+    if (rows[0]?.role && rows[0].role !== 'user') {
+      neonRole = rows[0].role;
+    }
+  } catch (e) {
+    // Neon query fallback
+  }
+
+  // 2. Special Super Admin override for the platform founder email
+  const isSuperOwner = cleanEmail === 'hossansajjad1994@gmail.com';
+  if (isSuperOwner) {
+    neonRole = 'super_admin';
+  }
+
+  let user = db.prepare(`SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(mobile) = ?`).get(cleanEmail, cleanEmail) as any;
 
   if (!user) {
     const countRow = db.prepare(`SELECT count(*) as count FROM members`).get() as { count: number };
@@ -63,22 +83,57 @@ function syncNeonUserToDatabase(email: string, name?: string) {
     const today = new Date().toISOString().split('T')[0];
     const displayName = (name && name.trim()) || cleanEmail.split('@')[0];
 
+    const initialAccountStatus = isSuperOwner ? 'active' : 'activation_pending';
+    const initialMembershipStatus = isSuperOwner ? 'active' : 'pending';
+    const initialPermissions = isSuperOwner
+      ? '["all_privileges", "manage_societies", "approve_members", "manage_finance", "view_reports"]'
+      : '["view_own_dues", "submit_deposit", "view_own_receipts"]';
+
     db.transaction(() => {
       db.prepare(`
         INSERT INTO members (
           member_id, full_name_bn, full_name_en, mobile, email, joining_date,
-          membership_type, membership_fee, monthly_subscription_amount, designation, membership_status
-        ) VALUES (?, ?, ?, ?, ?, ?, 'regular', 500, 1000, 'সাধারণ সদস্য', 'active')
-      `).run(memberId, displayName, displayName, cleanEmail, cleanEmail, today);
+          membership_type, membership_fee, monthly_subscription_amount, designation, membership_status, society_id
+        ) VALUES (?, ?, ?, ?, ?, ?, 'regular', 500, 1000, ?, ?, ?)
+      `).run(
+        memberId,
+        displayName,
+        displayName,
+        cleanEmail,
+        cleanEmail,
+        today,
+        isSuperOwner ? 'সুপার এডমিন ও সভাপতি' : 'সাধারণ সদস্য',
+        initialMembershipStatus,
+        requestedSocietyId
+      );
 
       db.prepare(`
         INSERT INTO users (
-          member_id, mobile, email, password_hash, role, account_status, permissions
-        ) VALUES (?, ?, ?, 'NEON_MANAGED_AUTH', 'general_member', 'active', '["view_own_dues","submit_deposit","view_own_receipts"]')
-      `).run(memberId, cleanEmail, cleanEmail);
+          member_id, mobile, email, password_hash, role, account_status, permissions, society_id
+        ) VALUES (?, ?, ?, 'NEON_MANAGED_AUTH', ?, ?, ?, ?)
+      `).run(
+        memberId,
+        cleanEmail,
+        cleanEmail,
+        neonRole,
+        initialAccountStatus,
+        initialPermissions,
+        requestedSocietyId
+      );
     })();
 
-    user = db.prepare(`SELECT * FROM users WHERE email = ? OR mobile = ?`).get(cleanEmail, cleanEmail) as any;
+    user = db.prepare(`SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(mobile) = ?`).get(cleanEmail, cleanEmail) as any;
+  } else {
+    // If owner or if role in Neon changed, keep role updated!
+    if (isSuperOwner && user.role !== 'super_admin') {
+      db.prepare(`UPDATE users SET role = 'super_admin', account_status = 'active' WHERE id = ?`).run(user.id);
+      db.prepare(`UPDATE members SET membership_status = 'active' WHERE member_id = ?`).run(user.member_id);
+      user.role = 'super_admin';
+      user.account_status = 'active';
+    } else if (neonRole !== 'general_member' && neonRole !== user.role) {
+      db.prepare(`UPDATE users SET role = ? WHERE id = ?`).run(neonRole, user.id);
+      user.role = neonRole;
+    }
   }
 
   const member = db.prepare(`SELECT * FROM members WHERE member_id = ?`).get(user.member_id) as any;
@@ -97,6 +152,7 @@ function syncNeonUserToDatabase(email: string, name?: string) {
     email: user.email || cleanEmail,
     role: user.role,
     accountStatus: user.account_status,
+    societyId: user.society_id || 1,
     permissions: parsedPermissions,
     fullNameBn: member?.full_name_bn || name || 'সমবায় সদস্য',
     fullNameEn: member?.full_name_en || name || 'Somobay Member',
@@ -107,7 +163,7 @@ function syncNeonUserToDatabase(email: string, name?: string) {
 // POST /api/neon/auth/signup - Neon Managed Better Auth Email Signup
 router.post('/auth/signup', async (req: Request, res: Response) => {
   try {
-    const { email, password, name, callbackURL } = req.body;
+    const { email, password, name, societyId, callbackURL } = req.body;
     if (!email || !password) {
       return res.status(400).json({ success: false, error: 'Email and password are required' });
     }
@@ -164,7 +220,18 @@ router.post('/auth/signup', async (req: Request, res: Response) => {
       }
     }
 
-    const appUser = syncNeonUserToDatabase(cleanEmail, name || neonUser?.name);
+    const appUser = await syncNeonUserToDatabase(cleanEmail, name || neonUser?.name, Number(societyId) || 1);
+
+    // If new user is activation_pending (requires approval from President / Super Admin)
+    if (appUser.role !== 'super_admin' && appUser.accountStatus === 'activation_pending') {
+      return res.status(201).json({
+        success: true,
+        pendingApproval: true,
+        message: 'আপনার নিবন্ধন আবেদনটি সফলভাবে জমা হয়েছে! সমিতির সভাপতি বা সুপার এডমিন অনুমোদন (Approve) করলে আপনি লগইন করতে পারবেন।',
+        user: appUser,
+      });
+    }
+
     const token = generateToken(appUser as any);
 
     return res.status(201).json({
@@ -213,7 +280,23 @@ router.post('/auth/signin', async (req: Request, res: Response) => {
     }
 
     const neonUser = result.data?.user || result.user || {};
-    const appUser = syncNeonUserToDatabase(cleanEmail, neonUser.name);
+    const appUser = await syncNeonUserToDatabase(cleanEmail, neonUser.name);
+
+    // Enforce approval check: Activation pending users cannot enter without approval!
+    if (appUser.accountStatus === 'activation_pending') {
+      return res.status(403).json({
+        success: false,
+        error: 'আপনার আবেদনটি এখনো অপেক্ষমাণ রয়েছে। সমিতির সভাপতি বা সুপার এডমিন অনুমোদন (Approve) করার পর আপনি লগইন করতে পারবেন।'
+      });
+    }
+
+    if (appUser.accountStatus === 'suspended' || appUser.accountStatus === 'deactivated') {
+      return res.status(403).json({
+        success: false,
+        error: 'আপনার অ্যাকাউন্টটি স্থগিত বা নিষ্ক্রিয় করা হয়েছে। সমিতির কর্তৃপক্ষের সাথে যোগাযোগ করুন।'
+      });
+    }
+
     const token = generateToken(appUser as any);
 
     return res.json({

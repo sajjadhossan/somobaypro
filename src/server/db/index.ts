@@ -487,6 +487,11 @@ export function initDatabase() {
     `ALTER TABLE society_settings ADD COLUMN last_telegram_backup_at DATETIME`,
     `ALTER TABLE society_settings ADD COLUMN gemini_api_key TEXT`,
     `ALTER TABLE society_settings ADD COLUMN gemini_model TEXT DEFAULT 'gemini-2.0-flash'`,
+    `ALTER TABLE users ADD COLUMN society_id INTEGER DEFAULT 1`,
+    `ALTER TABLE members ADD COLUMN society_id INTEGER DEFAULT 1`,
+    `ALTER TABLE societies ADD COLUMN president_id TEXT`,
+    `ALTER TABLE societies ADD COLUMN president_name TEXT`,
+    `ALTER TABLE societies ADD COLUMN president_email TEXT`,
   ];
 
   for (const alterSql of migrationAlters) {
@@ -496,4 +501,15 @@ export function initDatabase() {
       // Column already exists, safe to ignore
     }
   }
+
+  // Ensure demo client society 2 exists for multi-tenant showcase
+  try {
+    const soc2 = db.prepare('SELECT id FROM societies WHERE id = 2').get();
+    if (!soc2) {
+      db.prepare(`
+        INSERT INTO societies (id, name_bn, name_en, short_name, reg_no, address, district, upazila, phone, email, logo_url, monthly_subscription_default, president_name, president_email, is_active)
+        VALUES (2, 'ধানমন্ডি সমবায় সমিতি লিমিটেড', 'Dhanmondi Somobay Samity Limited', 'DSSL', 'REG-DH-2021-1402', 'রোড #০৭, ধানমন্ডি আ/এ', 'ঢাকা', 'ধানমন্ডি', '+880 1812-987654', 'info@dhanmondisomobay.org', '/logo.svg', 1500, 'মো: কামাল হোসেন (সভাপতি)', 'president.dhanmondi@somobaypro.org', 1)
+      `).run();
+    }
+  } catch (e) {}
 }
