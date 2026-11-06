@@ -146,7 +146,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
                     Somobay<span className="text-emerald-600">Pro</span>
                   </span>
                   <span className="hidden sm:inline-block px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[9px] font-bold rounded">
-                    OS v1.0
+                    OS v1.1.3
                   </span>
                 </div>
                 <p className="text-[10px] text-slate-500 font-medium line-clamp-1">

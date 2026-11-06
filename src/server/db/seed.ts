@@ -130,9 +130,9 @@ export async function seedDatabase() {
       designation, membership_status, nominee_name, nominee_relation, nominee_mobile,
       emergency_name, emergency_relation, emergency_mobile, approved_by, approved_at, society_id
     ) VALUES (
-      'SOC-2026-0001', 'মোহাম্মদ সাজ্জাদ হোসেন', 'Mohammad Sajjad Hossain',
+      'SOC-2026-0001', 'সাজ্জাদ হোসাইন', 'Sajjad Hossain',
       'মরহুম হাজী আব্দুল জলিল', 'মরহুমা ফাতেমা খাতুন', '1985-05-15', 'male',
-      '19852693847500001', '01711000001', 'hossansajjad1994@gmail.com',
+      '19852693847500001', '01881210444', 'hossansajjad1994@gmail.com',
       'ধানমন্ডি, ঢাকা', 'মুন্সীগঞ্জ সদর', 'সফটওয়্যার প্রতিষ্ঠাতা ও উদ্যোক্তা',
       '2024-01-01', 'life', 500, 1000,
       'প্রধান নিয়ন্ত্রক ও প্রতিষ্ঠাতা', 'active',
@@ -146,7 +146,7 @@ export async function seedDatabase() {
   const insertUser = db.prepare(`
     INSERT INTO users (
       member_id, mobile, email, password_hash, role, account_status, permissions, society_id
-    ) VALUES ('SOC-2026-0001', '01711000001', 'hossansajjad1994@gmail.com', ?, 'super_admin', 'active', '[]', 1)
+    ) VALUES ('SOC-2026-0001', '01881210444', 'hossansajjad1994@gmail.com', ?, 'super_admin', 'active', '[]', 1)
   `);
   insertUser.run(defaultPasswordHash);
 

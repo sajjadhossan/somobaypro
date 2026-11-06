@@ -23,6 +23,7 @@ import aiRouter from './routes/ai.routes';
 import realtimeRouter from './routes/realtime.routes';
 import neonRouter from './routes/neon.routes';
 import { BackupService } from './services/backup.service';
+import { NeonSyncService } from './services/neon-sync.service';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -95,8 +96,14 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 async function startServer() {
   try {
     await seedDatabase();
+    // Live Synchronize all members, users, and officials directly from Neon Cloud Database
+    await NeonSyncService.syncAllFromNeon().catch((e) => console.warn('Initial Neon sync warning:', e.message));
     // Start automated 1-minute and real-time database backup service
     BackupService.initScheduler();
+    // Periodically sync with Neon every 5 minutes so any new user/member added to Neon is instantly reflected
+    setInterval(() => {
+      NeonSyncService.syncAllFromNeon().catch(() => {});
+    }, 5 * 60 * 1000);
 
     app.listen(PORT, '0.0.0.0', () => {
       console.log(`=======================================================`);

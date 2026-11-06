@@ -6,11 +6,12 @@ import { db } from '../db/index';
 import { generateToken, authenticate } from '../middleware/auth';
 import { AuditService } from '../services/audit.service';
 import { NotificationService } from '../services/notification.service';
+import { NeonSyncService } from '../services/neon-sync.service';
 
 const router = Router();
 
 // POST /api/auth/login
-router.post('/login', (req: Request, res: Response) => {
+router.post('/login', async (req: Request, res: Response) => {
   const { identifier, password } = req.body;
   const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
   const userAgent = req.headers['user-agent'] || 'unknown';
@@ -22,12 +23,23 @@ router.post('/login', (req: Request, res: Response) => {
   const cleanIdentifier = identifier.trim();
 
   // Find user by mobile, member_id, or email
-  const user = db.prepare(`
+  let user = db.prepare(`
     SELECT u.*, m.full_name_bn, m.full_name_en, m.membership_status, m.membership_type, m.designation
     FROM users u
     LEFT JOIN members m ON u.member_id = m.member_id
     WHERE u.mobile = ? OR u.member_id = ? OR u.email = ?
   `).get(cleanIdentifier, cleanIdentifier, cleanIdentifier) as any;
+
+  if (!user) {
+    // Attempt live sync from Neon Cloud Database in case user was registered in Neon
+    await NeonSyncService.syncAllFromNeon().catch(() => {});
+    user = db.prepare(`
+      SELECT u.*, m.full_name_bn, m.full_name_en, m.membership_status, m.membership_type, m.designation
+      FROM users u
+      LEFT JOIN members m ON u.member_id = m.member_id
+      WHERE u.mobile = ? OR u.member_id = ? OR u.email = ?
+    `).get(cleanIdentifier, cleanIdentifier, cleanIdentifier) as any;
+  }
 
   if (!user) {
     AuditService.logLogin({

@@ -113,7 +113,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPath, onNavigate, isOpe
 
         {/* Sidebar Footer */}
         <div className="p-3 border-t border-slate-800 text-[11px] text-slate-400 text-center">
-          <p className="font-mono text-emerald-500">v1.0.0 Production</p>
+          <p className="font-mono text-emerald-500 font-semibold">v1.1.3 Production</p>
           <p className="mt-0.5 text-slate-500">Bangladeshi Kalyan Samity</p>
         </div>
       </aside>
