@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   Lock, Phone, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, 
