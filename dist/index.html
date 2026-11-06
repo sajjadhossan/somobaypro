@@ -13,10 +13,52 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script type="module" crossorigin src="/assets/index-D5Jr6m4K.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-B-Q0HDqi.css">
+    <script type="module" crossorigin src="/assets/index-CKwX5qeu.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-vTXXvLfv.css">
   </head>
-  <body class="bg-slate-50 text-slate-800 antialiased selection:bg-emerald-500 selection:text-white">
-    <div id="root"></div>
+  <body class="bg-slate-900 text-slate-800 antialiased selection:bg-emerald-500 selection:text-white" style="margin: 0; padding: 0; background-color: #064e3b;">
+    <div id="root">
+      <div id="sp-preloader" style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle at top, #065f46 0%, #064e3b 100%); color: white; font-family: 'Hind Siliguri', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 24px; box-sizing: border-box;">
+        <div style="width: 80px; height: 80px; border-radius: 24px; background: white; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; box-shadow: 0 16px 32px rgba(0,0,0,0.25);">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+        </div>
+        <h1 style="margin: 0 0 6px 0; font-size: 26px; font-weight: 800; letter-spacing: -0.5px; color: white;">SomobayPro</h1>
+        <p style="margin: 0 0 28px 0; font-size: 13.5px; color: #a7f3d0; font-weight: 500;">ডিজিটাল সমবায় সমিতি ম্যানেজমেন্ট সিস্টেম</p>
+        <div style="width: 38px; height: 38px; border: 3.5px solid rgba(255,255,255,0.2); border-top-color: #34d399; border-radius: 50%; animation: spSpin 0.8s linear infinite;"></div>
+        <p id="sp-loading-msg" style="margin-top: 18px; font-size: 13px; color: #d1fae5; font-weight: 500;">অ্যাপ্লিকেশন প্রস্তুত হচ্ছে, অনুগ্রহ করে অপেক্ষা করুন...</p>
+        <div id="sp-retry-btn-container" style="margin-top: 16px; display: none;">
+          <button onclick="location.reload(true)" style="background: white; color: #064e3b; border: none; padding: 9px 20px; border-radius: 999px; font-weight: 700; font-size: 13px; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.2);">পুনরায় লোড করুন</button>
+        </div>
+        <style>
+          @keyframes spSpin { to { transform: rotate(360deg); } }
+        </style>
+      </div>
+    </div>
+    <script>
+      // Watchdog: If app bundle takes more than 7 seconds on slow network, offer reload button
+      setTimeout(function() {
+        var preloader = document.getElementById('sp-preloader');
+        var retryBox = document.getElementById('sp-retry-btn-container');
+        var msg = document.getElementById('sp-loading-msg');
+        if (preloader && retryBox) {
+          retryBox.style.display = 'block';
+          if (msg) msg.innerText = 'ধীরগতির নেটওয়ার্ক সনাক্ত হয়েছে। অপেক্ষা করুন অথবা রিলোড দিন:';
+        }
+      }, 7000);
+
+      // Global error listener to replace blank screen with recovery view
+      window.addEventListener('error', function(e) {
+        var preloader = document.getElementById('sp-preloader');
+        var msg = document.getElementById('sp-loading-msg');
+        var retryBox = document.getElementById('sp-retry-btn-container');
+        if (preloader && msg) {
+          msg.innerHTML = '<span style="color: #fca5a5;">লোড হতে সমস্যা হয়েছে (' + (e.message || 'ত্রুটি') + ')</span>';
+          if (retryBox) retryBox.style.display = 'block';
+        }
+      });
+    </script>
   </body>
 </html>

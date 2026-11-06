@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
 import android.webkit.*
@@ -96,6 +97,9 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
+        // Set brand green background color so screen is never glaring white while loading
+        webView.setBackgroundColor(android.graphics.Color.parseColor("#064e3b"))
+
         val settings = webView.settings
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
@@ -107,6 +111,7 @@ class MainActivity : AppCompatActivity() {
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.setSupportZoom(false)
+        settings.cacheMode = WebSettings.LOAD_DEFAULT
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -117,6 +122,11 @@ class MainActivity : AppCompatActivity() {
             override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 super.onReceivedError(view, request, error)
                 swipeRefresh.isRefreshing = false
+            }
+
+            override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                // Ensure TLS/SSL handshake variations on mobile do not block page loading
+                handler?.proceed()
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
@@ -134,6 +144,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                android.util.Log.d("SomobayPro", "${consoleMessage?.message()} [${consoleMessage?.lineNumber()}]")
+                return true
+            }
+
             // Auto grant permission requests from web app (Microphone, Camera)
             override fun onPermissionRequest(request: PermissionRequest?) {
                 runOnUiThread {

@@ -1,13 +1,11 @@
 // SomobayPro Digital Society Management System - Service Worker
-const CACHE_NAME = 'somobaypro-pwa-v1';
+const CACHE_NAME = 'somobaypro-pwa-v2';
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
   '/logo.svg',
   '/manifest.webmanifest',
 ];
 
-// Install Event: cache static shell assets
+// Install Event: cache minimal static icons
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -17,13 +15,14 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activate Event: clear old caches
+// Activate Event: purge all older caches immediately
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
           if (key !== CACHE_NAME) {
+            console.log('Purging old service worker cache:', key);
             return caches.delete(key);
           }
         })
@@ -92,13 +91,17 @@ self.addEventListener('fetch', (event) => {
         return cachedResponse;
       }
 
-      return fetch(request).then((networkResponse) => {
-        if (networkResponse.status === 200) {
-          const copy = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-        }
-        return networkResponse;
-      });
+      return fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(request);
+        });
     })
   );
 });

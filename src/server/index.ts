@@ -74,6 +74,10 @@ const distDir = path.resolve(process.cwd(), 'dist');
 if (fs.existsSync(distDir)) {
   app.use(express.static(distDir));
   app.use((req, res, next) => {
+    // Never serve index.html for missing static assets or files with extensions
+    if (req.path.startsWith('/assets/') || req.path.match(/\.[a-zA-Z0-9]+$/)) {
+      return res.status(404).send('Asset not found');
+    }
     if (!req.path.startsWith('/api') && !req.path.startsWith('/uploads')) {
       return res.sendFile(path.join(distDir, 'index.html'));
     }

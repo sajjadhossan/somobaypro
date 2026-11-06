@@ -10,6 +10,10 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    target: 'es2018',
+    cssTarget: 'chrome61',
+  },
   server: {
     port: 5173,
     host: '0.0.0.0',
