@@ -59,6 +59,7 @@ router.post('/auth/signup', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Email and password are required' });
     }
     const { getNeonAuthClient } = await import('../services/neon.js');
+    const { generateToken } = await import('../middleware/auth.js');
     const authClient = await getNeonAuthClient();
     const effectiveCallback = callbackURL || 'https://somobaypro.vercel.app';
     const result = await authClient.signUp.email(
@@ -74,9 +75,26 @@ router.post('/auth/signup', async (req: Request, res: Response) => {
         },
       }
     );
+
+    const neonUser = result.data?.user || result.user || {};
+    const appUser = {
+      id: 9999,
+      memberId: 'NEON-' + (neonUser.id || Date.now()).toString().slice(0, 8).toUpperCase(),
+      mobile: email,
+      role: 'general_member',
+      accountStatus: 'active',
+      permissions: ['view_own_dues', 'submit_deposit', 'view_own_receipts'],
+      fullNameBn: name || 'সমবায় সদস্য',
+      fullNameEn: name || 'Somobay Member',
+      email: email,
+    };
+    const token = generateToken(appUser as any);
+
     res.status(201).json({
       success: true,
-      user: result.data?.user || result.user,
+      token,
+      user: appUser,
+      neonUser,
     });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message });
@@ -91,6 +109,7 @@ router.post('/auth/signin', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Email and password are required' });
     }
     const { getNeonAuthClient } = await import('../services/neon.js');
+    const { generateToken } = await import('../middleware/auth.js');
     const authClient = await getNeonAuthClient();
     const effectiveCallback = callbackURL || 'https://somobaypro.vercel.app';
     const result = await authClient.signIn.email(
@@ -105,9 +124,25 @@ router.post('/auth/signin', async (req: Request, res: Response) => {
         },
       }
     );
+
+    const neonUser = result.data?.user || result.user || {};
+    const appUser = {
+      id: 9999,
+      memberId: 'NEON-' + (neonUser.id || Date.now()).toString().slice(0, 8).toUpperCase(),
+      mobile: email,
+      role: 'general_member',
+      accountStatus: 'active',
+      permissions: ['view_own_dues', 'submit_deposit', 'view_own_receipts'],
+      fullNameBn: neonUser.name || 'সমবায় সদস্য',
+      fullNameEn: neonUser.name || 'Somobay Member',
+      email: email,
+    };
+    const token = generateToken(appUser as any);
+
     res.json({
       success: true,
-      user: result.data?.user || result.user,
+      token,
+      user: appUser,
       session: result.data?.session || result.session,
     });
   } catch (err: any) {

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
-  Lock, Phone, Eye, EyeOff, ShieldCheck, ArrowRight, 
-  UserPlus, QrCode, AlertCircle, Sparkles, Building2 
+  Lock, Phone, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, 
+  UserPlus, QrCode, AlertCircle, Sparkles, Building2, User 
 } from 'lucide-react';
 
 interface LoginProps {
@@ -12,6 +12,11 @@ interface LoginProps {
 
 export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVerify }) => {
   const { login, society, language, setLanguage, t } = useAuth();
+  const [authMode, setAuthMode] = useState<'mobile' | 'neon'>('mobile');
+  const [neonIsSignUp, setNeonIsSignUp] = useState(false);
+  const [neonName, setNeonName] = useState('');
+  const [neonEmail, setNeonEmail] = useState('');
+  const [neonPassword, setNeonPassword] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -39,6 +44,36 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
       }
     } catch (err) {
       setError('Cannot connect to server. Please check your network.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleNeonSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      const endpoint = neonIsSignUp ? '/api/neon/auth/signup' : '/api/neon/auth/signin';
+      const body = neonIsSignUp
+        ? { email: neonEmail, password: neonPassword, name: neonName }
+        : { email: neonEmail, password: neonPassword };
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.token) {
+        login(data.token, data.user);
+      } else {
+        setError(data.error || 'Neon Auth authentication failed.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Cannot connect to server. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -121,76 +156,200 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Identifier (Mobile or Member ID) */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {language === 'bn' ? 'মোবাইল নম্বর অথবা মেম্বার আইডি' : 'Mobile Number or Member ID'}
-              </label>
-              <div className="relative">
-                <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="e.g. 01711000001 বা 01711000007"
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
-                  required
-                />
-              </div>
-            </div>
+          {/* Auth Method Tabs */}
+          <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => { setAuthMode('mobile'); setError(null); }}
+              className={`flex-1 py-2 rounded-lg transition flex items-center justify-center gap-1.5 ${
+                authMode === 'mobile' ? 'bg-white text-emerald-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Phone className="w-3.5 h-3.5" />
+              <span>{language === 'bn' ? 'মোবাইল আইডি' : 'Mobile ID'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAuthMode('neon'); setError(null); }}
+              className={`flex-1 py-2 rounded-lg transition flex items-center justify-center gap-1.5 ${
+                authMode === 'neon' ? 'bg-emerald-600 text-white shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Mail className="w-3.5 h-3.5" />
+              <span>{language === 'bn' ? 'ইমেইল (Neon Auth)' : 'Email (Neon Auth)'}</span>
+            </button>
+          </div>
 
-            {/* Password */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {language === 'bn' ? 'পাসওয়ার্ড' : 'Password'}
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
-                  required
-                />
+          {authMode === 'mobile' ? (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Identifier (Mobile or Member ID) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {language === 'bn' ? 'মোবাইল নম্বর অথবা মেম্বার আইডি' : 'Mobile Number or Member ID'}
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="e.g. 01711000001 বা 01711000007"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {language === 'bn' ? 'পাসওয়ার্ড' : 'Password'}
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Remember Me */}
+              <div className="flex items-center justify-between text-xs">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-slate-600">{language === 'bn' ? 'আমাকে মনে রাখুন' : 'Remember me'}</span>
+                </label>
+                <span className="text-emerald-700 font-medium hover:underline cursor-pointer">
+                  {language === 'bn' ? 'পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot password?'}
+                </span>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-700/20 flex items-center justify-center gap-2 transition disabled:opacity-50"
+              >
+                <span>{loading ? 'প্রবেশ করা হচ্ছে...' : t('login')}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleNeonSubmit} className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="text-xs font-bold text-slate-800">
+                  {neonIsSignUp
+                    ? (language === 'bn' ? 'নতুন সদস্য রেজিস্ট্রেশন (Neon Auth)' : 'New Member Sign Up')
+                    : (language === 'bn' ? 'ইমেইল দিয়ে সাইন-ইন' : 'Sign In with Email')}
+                </span>
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  onClick={() => { setNeonIsSignUp(!neonIsSignUp); setError(null); }}
+                  className="text-xs font-semibold text-emerald-700 hover:underline"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {neonIsSignUp
+                    ? (language === 'bn' ? 'আগে অ্যাকাউন্ট থাকলে লগইন করুন' : 'Already have account? Sign in')
+                    : (language === 'bn' ? 'নতুন অ্যাকাউন্ট খুলুন' : 'Create new account')}
                 </button>
               </div>
-            </div>
 
-            {/* Remember Me */}
-            <div className="flex items-center justify-between text-xs">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                />
-                <span className="text-slate-600">{language === 'bn' ? 'আমাকে মনে রাখুন' : 'Remember me'}</span>
-              </label>
-              <span className="text-emerald-700 font-medium hover:underline cursor-pointer">
-                {language === 'bn' ? 'পাসওয়ার্ড ভুলে গেছেন?' : 'Forgot password?'}
-              </span>
-            </div>
+              {/* Name (Only on Sign Up) */}
+              {neonIsSignUp && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    {language === 'bn' ? 'আপনার পূর্ণ নাম' : 'Full Name'}
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={neonName}
+                      onChange={(e) => setNeonName(e.target.value)}
+                      placeholder="e.g. সাদমান সাকিব"
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
+                      required={neonIsSignUp}
+                    />
+                  </div>
+                </div>
+              )}
 
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-700/20 flex items-center justify-center gap-2 transition disabled:opacity-50"
-            >
-              <span>{loading ? 'প্রবেশ করা হচ্ছে...' : t('login')}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </form>
+              {/* Email */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {language === 'bn' ? 'ইমেইল অ্যাড্রেস' : 'Email Address'}
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="email"
+                    value={neonEmail}
+                    onChange={(e) => setNeonEmail(e.target.value)}
+                    placeholder="member@somobaypro.com"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {language === 'bn' ? 'পাসওয়ার্ড' : 'Password'}
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={neonPassword}
+                    onChange={(e) => setNeonPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-xl text-sm font-bold shadow-lg shadow-emerald-700/20 flex items-center justify-center gap-2 transition disabled:opacity-50"
+              >
+                <span>
+                  {loading
+                    ? 'প্রক্রিয়াকরণ হচ্ছে...'
+                    : neonIsSignUp
+                    ? (language === 'bn' ? 'অ্যাকাউন্ট তৈরি করুন (Neon Auth)' : 'Sign Up with Neon')
+                    : (language === 'bn' ? 'লগইন করুন (Neon Auth)' : 'Sign In with Neon')}
+                </span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          )}
 
           {/* Quick-Fill 1-Click Role Logins for Testing */}
           <div className="pt-2 border-t border-slate-100">
