@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release Version (e.g. v1.0.1)'
+        description: 'Release Version (e.g. v1.0.3)'
         required: true
-        default: 'v1.0.1'
+        default: 'v1.0.3'
 
 permissions:
   contents: write
@@ -38,7 +38,6 @@ jobs:
         run: |
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
           echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
-          cat android/local.properties
           yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses 2>/dev/null || true
 
       - name: 🏷️ Determine Version
@@ -50,18 +49,44 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           CLEAN_VER="${TAG#v}"
-          CODE=$(echo "$CLEAN_VER" | tr -dc '0-9')
-          if [ -z "$CODE" ]; then CODE=2; fi
+          # Create versionCode from version numbers e.g. 1.0.3 -> 10003
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CLEAN_VER"
+          CODE=$(( ${MAJOR:-1} * 10000 + ${MINOR:-0} * 100 + ${PATCH:-0} ))
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
           echo "VERSION_NAME=$CLEAN_VER" >> $GITHUB_OUTPUT
           echo "VERSION_CODE=$CODE" >> $GITHUB_OUTPUT
-          echo "Building version $CLEAN_VER (code $CODE) for tag $TAG"
+          echo "✅ Building version $CLEAN_VER (versionCode: $CODE) for tag $TAG"
 
       - name: 📝 Update Version in build.gradle
         run: |
           sed -i "s/versionCode [0-9]*/versionCode ${{ steps.ver.outputs.VERSION_CODE }}/" android/app/build.gradle
           sed -i 's/versionName "[^"]*"/versionName "${{ steps.ver.outputs.VERSION_NAME }}"/' android/app/build.gradle
           grep -E "versionCode|versionName" android/app/build.gradle
+
+      - name: 🔑 Setup Release Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "✅ Using production release keystore from GitHub Secrets"
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/somobaypro-release.keystore
+            # Inject signing config into build.gradle
+            cat >> android/app/build.gradle << 'SIGNINGEOF'
+
+          android.signingConfigs {
+              productionRelease {
+                  storeFile file("somobaypro-release.keystore")
+                  storePassword "SomobayPro@2024!"
+                  keyAlias "somobaypro"
+                  keyPassword "SomobayPro@2024!"
+              }
+          }
+          android.buildTypes.release.signingConfig = android.signingConfigs.productionRelease
+          SIGNINGEOF
+            echo "✅ Signing config injected for production keystore"
+          else
+            echo "⚠️ No KEYSTORE_BASE64 secret found — using debug keystore (for initial setup)"
+          fi
 
       - name: 🔨 Build Android Release APK
         working-directory: android
@@ -75,54 +100,59 @@ jobs:
           mkdir -p release-apk
           APK_FILE=$(find android/app/build/outputs/apk/release/ -name "*.apk" | head -n 1)
           if [ -z "$APK_FILE" ]; then
-            echo "❌ Error: Release APK was not found!"
-            find android/app/build/outputs/ -type f
+            echo "❌ APK not found!"
+            find android/app/build/outputs/ -type f 2>/dev/null
             exit 1
           fi
-          echo "✅ Found APK at: $APK_FILE"
+          echo "✅ Found APK: $APK_FILE"
           cp "$APK_FILE" "release-apk/SomobayPro-${{ steps.ver.outputs.TAG }}.apk"
           ls -la release-apk/
 
-      - name: 💾 Upload Artifact
+      - name: 💾 Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: SomobayPro-${{ steps.ver.outputs.TAG }}-apk
           path: release-apk/*.apk
-          retention-days: 30
+          retention-days: 90
 
       - name: 🚀 Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.ver.outputs.TAG }}
-          name: "🏛️ প্রগতি কল্যাণ সমবায় সমিতি ${{ steps.ver.outputs.TAG }}"
+          name: "📱 সমবায় প্রো ${{ steps.ver.outputs.TAG }}"
           body: |
-            ## 📱 SomobayPro Android APK — ${{ steps.ver.outputs.TAG }}
+            ## 📱 সমবায় প্রো (SomobayPro) — ${{ steps.ver.outputs.TAG }}
 
-            **প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড** — আধুনিক ও ডিজিটাল সমবায় সমিতি ম্যানেজমেন্ট সিস্টেম
-
-            ---
-
-            ### 🆕 এই ভার্সনে যা যা রয়েছে:
-            - 🎙️ **স্মার্ট বাংলা ভয়েস নেভিগেশন** — মুখে বললেই পেজ/মডাল ওপেন হয়
-            - ⚡ **ভয়েস ডিপোজিট অটো-ফিল** — মুখে বলে ব্যাংক জমার ফর্ম পূরণ
-            - 🔊 **প্রাকৃতিক মিষ্টি বাংলা TTS** — Google Bangla voice দিয়ে AI কথা বলে
-            - 🤖 **Somobay AI (Gemini)** — ব্যাংক স্লিপ স্ক্যান ও বাংলায় কথোপকথন
-            - 🛡️ **সম্পূর্ণ সুদমুক্ত নীতি (Strictly No Loans)** — কঠোরভাবে বলবৎ
-            - 🔐 **স্মার্ট পারমিশন গেট** — অ্যাপ ওপেনের সাথে সাথে ক্যামেরা, মাইক, স্টোরেজ পারমিশন নিয়ে নিবে
-            - 📗 ডিজিটাল পাসবুক | 📜 শেয়ার সনদ | 🪪 আইডি কার্ড | 🧾 ডিজিটাল রসিদ
+            **প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড** — আধুনিক ডিজিটাল সমবায় ম্যানেজমেন্ট সিস্টেম
 
             ---
 
-            ### 📲 ইনস্টলেশন গাইড:
-            1. নিচে দেওয়া **SomobayPro-${{ steps.ver.outputs.TAG }}.apk** ফাইলটি ডাউনলোড করুন
-            2. আপনার ফোনের **Settings → Security / Install unknown apps** অনুমোদন করুন
-            3. অ্যাপ ওপেন করে প্রয়োজনীয় সকল পারমিশন প্রদান করুন
-            4. আপনার মোবাইল ও পাসওয়ার্ড দিয়ে লগইন করুন
+            ### ✅ আপডেট সিস্টেম:
+            > এখন থেকে নতুন APK ইনস্টল করলেই সরাসরি **আপডেট** হয়ে যাবে।  
+            > পুরানো অ্যাপ **ডিলিট করা লাগবে না।**
 
             ---
 
-            > 🌐 **ওয়েব ভার্সন:** https://somobaypro.onrender.com  
-            > 📱 **সাপোর্টেড অ্যান্ড্রয়েড:** Android 7.0+ (API 24+)
+            ### 🆕 এই ভার্সনে:
+            - 🎙️ স্মার্ট বাংলা ভয়েস নেভিগেশন
+            - ⚡ ভয়েস ডিপোজিট অটো-ফিল
+            - 🔊 প্রাকৃতিক মিষ্টি বাংলা TTS
+            - 🤖 Somobay AI (Gemini) — ব্যাংক স্লিপ স্ক্যান
+            - 🔐 স্মার্ট পারমিশন গেট — অ্যাপ ওপেনে সব পারমিশন নেয়
+            - 🛡️ সম্পূর্ণ সুদমুক্ত (Strictly No Loans)
+
+            ---
+
+            ### 📲 ইনস্টলেশন:
+            1. নিচের **APK ফাইল** ডাউনলোড করুন
+            2. **Settings → Install unknown apps** অনুমোদন করুন
+            3. ইনস্টল করুন (আগের ভার্সন থাকলে সরাসরি আপডেট হবে ✅)
+            4. লগইন করুন
+
+            ---
+
+            > 🌐 **ওয়েব:** https://somobaypro.onrender.com  
+            > 📱 **Android:** 7.0+ (API 24+) | versionCode: ${{ steps.ver.outputs.VERSION_CODE }}
           files: release-apk/*.apk
           draft: false
           prerelease: false
