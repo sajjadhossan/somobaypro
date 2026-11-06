@@ -76,6 +76,10 @@ class MainActivity : AppCompatActivity() {
         swipeRefresh.setOnRefreshListener {
             webView.reload()
         }
+        // Only allow pull-to-refresh if WebView is at the absolute top (scrollY == 0)
+        swipeRefresh.setOnChildScrollUpCallback { _, _ ->
+            webView.canScrollVertically(-1)
+        }
 
         // Load the live SomobayPro web application
         webView.loadUrl("https://somobaypro.onrender.com")
@@ -112,6 +116,8 @@ class MainActivity : AppCompatActivity() {
 
         webView.overScrollMode = android.view.View.OVER_SCROLL_NEVER
         webView.isHorizontalScrollBarEnabled = false
+        webView.isVerticalScrollBarEnabled = true
+        webView.scrollBarStyle = android.view.View.SCROLLBARS_INSIDE_OVERLAY
         val settings = webView.settings
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
