@@ -102,7 +102,63 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({ onNavigate }
     } catch {}
   };
 
-  // Initialize Speech Recognition (Web Speech API)
+  // Listen to Smart Android Hardware Back Button to close modal
+  useEffect(() => {
+    const handleBack = (e: Event) => {
+      if (isOpen) {
+        e.preventDefault();
+        setIsOpen(false);
+      }
+    };
+    window.addEventListener('pkss:backpress', handleBack);
+    return () => window.removeEventListener('pkss:backpress', handleBack);
+  }, [isOpen]);
+
+  // Android Native Speech Recognizer bridge integration
+  useEffect(() => {
+    (window as any).onNativeSpeechReady = () => {
+      setIsListening(true);
+      playAudioTone(523, 784);
+    };
+
+    (window as any).onNativeSpeechStarted = () => {
+      setIsListening(true);
+    };
+
+    (window as any).onNativeSpeechPartial = (text: string) => {
+      setInputMessage(text);
+    };
+
+    (window as any).onNativeSpeechResult = (text: string) => {
+      setIsListening(false);
+      if (text && text.trim().length > 0) {
+        setInputMessage(text);
+        playAudioTone(784, 1046);
+        voiceAutoSpeakRef.current = true;
+        handleSendMessage(text);
+      }
+    };
+
+    (window as any).onNativeSpeechEnded = () => {
+      setIsListening(false);
+    };
+
+    (window as any).onNativeSpeechError = (errMsg: string) => {
+      setIsListening(false);
+      console.warn('Native speech error:', errMsg);
+    };
+
+    return () => {
+      delete (window as any).onNativeSpeechReady;
+      delete (window as any).onNativeSpeechStarted;
+      delete (window as any).onNativeSpeechPartial;
+      delete (window as any).onNativeSpeechResult;
+      delete (window as any).onNativeSpeechEnded;
+      delete (window as any).onNativeSpeechError;
+    };
+  }, []);
+
+  // Initialize Speech Recognition (Web Speech API Fallback)
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -248,9 +304,28 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({ onNavigate }
     }
   };
 
-  const toggleListening = () => {
+  const toggleListening = async () => {
+    // 1. Android Native Voice Bridge (100% reliable on Android devices)
+    const bridge = (window as any).AndroidVoiceBridge;
+    if (bridge && typeof bridge.isNativeVoiceSupported === 'function' && bridge.isNativeVoiceSupported()) {
+      if (isListening) {
+        bridge.stopListening();
+        setIsListening(false);
+      } else {
+        try {
+          setIsListening(true);
+          bridge.startListening('bn-BD');
+        } catch (e) {
+          console.error('Failed to start native Android voice:', e);
+          setIsListening(false);
+        }
+      }
+      return;
+    }
+
+    // 2. Web Speech API Fallback (for Web Browsers & Vercel)
     if (!recognitionRef.current) {
-      alert('আপনার ব্রাউজারে ভয়েস স্পিচ রেকগনিশন সক্রিয় নেই। ক্রোম ব্রাউজার ব্যবহার করুন।');
+      alert('আপনার ব্রাউজারে ভয়েস স্পিচ রেকগনিশন সক্রিয় নেই। ক্রোম ব্রাউজার বা অ্যান্ড্রয়েড অ্যাপ ব্যবহার করুন।');
       return;
     }
 
@@ -259,6 +334,9 @@ export const AIAssistantModal: React.FC<AIAssistantModalProps> = ({ onNavigate }
       setIsListening(false);
     } else {
       try {
+        if (navigator.mediaDevices?.getUserMedia) {
+          await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => {});
+        }
         recognitionRef.current.start();
       } catch (err) {
         console.error('Failed to start speech recognition', err);

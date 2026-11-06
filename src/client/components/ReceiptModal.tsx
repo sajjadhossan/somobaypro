@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Printer, Download, X, CheckCircle2, ShieldCheck, Share2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { SocietyPad } from './SocietyPad';
@@ -11,6 +11,15 @@ interface ReceiptModalProps {
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) => {
   const { society, language } = useAuth();
   const receiptRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleBack = (e: Event) => {
+      e.preventDefault();
+      onClose();
+    };
+    window.addEventListener('pkss:backpress', handleBack);
+    return () => window.removeEventListener('pkss:backpress', handleBack);
+  }, [onClose]);
 
   if (!receipt) return null;
 

@@ -6,6 +6,7 @@ import {
   Download, Smartphone
 } from 'lucide-react';
 import { SignaturePadModal } from './SignaturePadModal';
+import { ConnectedDevicesModal } from './ConnectedDevicesModal';
 import { useRealtime } from '../context/RealtimeContext';
 
 interface NavbarProps {
@@ -20,6 +21,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
   const [showSocietyHub, setShowSocietyHub] = useState(false);
   const [societiesList, setSocietiesList] = useState<any[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showDevicesModal, setShowDevicesModal] = useState(false);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -206,15 +208,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Real-time Multi-Device Sync Indicator */}
             {user && (
-              <div
-                className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-full border transition-all ${
+              <button
+                type="button"
+                onClick={() => setShowDevicesModal(true)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 ${
                   isConnected
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-sm'
-                    : 'bg-amber-50 text-amber-800 border-amber-300'
+                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm'
+                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
                 }`}
                 title={
                   isConnected
-                    ? `রিয়েল-টাইম ক্লাউড সিঙ্ক চালু আছে (${onlineDevices}টি ডিভাইস সংযুক্ত)`
+                    ? `রিয়েল-টাইম ক্লাউড সিঙ্ক চালু আছে (${onlineDevices}টি ডিভাইস সংযুক্ত) - ট্যাপ করে ডিভাইস দেখুন`
                     : 'পুনরায় সংযুক্ত করার চেষ্টা করা হচ্ছে...'
                 }
               >
@@ -227,7 +231,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
                 <span className="font-mono text-[10px] bg-white/80 px-1.5 py-0.5 rounded-full border border-slate-200">
                   {onlineDevices}
                 </span>
-              </div>
+              </button>
             )}
 
             {/* User Role Badge */}
@@ -377,6 +381,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
             refreshUserData();
           } catch (e) {}
         }}
+      />
+
+      {/* Connected Devices & Sessions Modal */}
+      <ConnectedDevicesModal
+        isOpen={showDevicesModal}
+        onClose={() => setShowDevicesModal(false)}
       />
     </header>
   );

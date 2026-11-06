@@ -188,10 +188,47 @@ export const PaymentsPage: React.FC = () => {
     speakVoiceNotice(spokenNotice);
   };
 
-  const toggleVoiceFill = () => {
+  const toggleVoiceFill = async () => {
+    // 1. Android Native Voice Bridge
+    const bridge = (window as any).AndroidVoiceBridge;
+    if (bridge && typeof bridge.isNativeVoiceSupported === 'function' && bridge.isNativeVoiceSupported()) {
+      if (isVoiceFilling) {
+        bridge.stopListening();
+        setIsVoiceFilling(false);
+      } else {
+        setIsVoiceFilling(true);
+        setVoiceFillTranscript('');
+        setVoiceFillStatus('🎙️ শুনছি... বলুন: যেমন "সোনালী ব্যাংক ধানমন্ডি শাখায় ১ হাজার টাকা জমা দিলাম"...');
+        playVoiceTone(523, 784);
+
+        (window as any).onNativeSpeechPartial = (text: string) => {
+          setVoiceFillTranscript(text);
+        };
+        (window as any).onNativeSpeechResult = (text: string) => {
+          setIsVoiceFilling(false);
+          playVoiceTone(784, 1046);
+          setVoiceFillTranscript(text);
+          if (text.trim()) {
+            handleApplyVoiceData(text.trim());
+          }
+        };
+        (window as any).onNativeSpeechError = (err: string) => {
+          setIsVoiceFilling(false);
+          setVoiceFillStatus(`ভয়েস সমস্যা: ${err}`);
+        };
+        (window as any).onNativeSpeechEnded = () => {
+          setIsVoiceFilling(false);
+        };
+
+        bridge.startListening('bn-BD');
+      }
+      return;
+    }
+
+    // 2. Web Speech API Fallback
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert('আপনার ব্রাউজারে ভয়েস সাপোর্ট নেই। ক্রোম বা এজ ব্রাউজার ব্যবহার করুন।');
+      alert('আপনার ব্রাউজারে ভয়েস সাপোর্ট নেই। ক্রোম ব্রাউজার বা অ্যান্ড্রয়েড অ্যাপ ব্যবহার করুন।');
       return;
     }
 
@@ -202,6 +239,9 @@ export const PaymentsPage: React.FC = () => {
     }
 
     try {
+      if (navigator.mediaDevices?.getUserMedia) {
+        await navigator.mediaDevices.getUserMedia({ audio: true }).catch(() => {});
+      }
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
@@ -210,7 +250,7 @@ export const PaymentsPage: React.FC = () => {
       recognition.onstart = () => {
         setIsVoiceFilling(true);
         setVoiceFillTranscript('');
-        setVoiceFillStatus('🎙️ শুনছি... বলুন: যেমন "সোনালী ব্যাংক ধানমন্ডি শাখায় ১ হাজার টাকা জমা দিলাম"...');
+        setVoiceFillStatus('🎙️ শুনছি... বলুন: যেমন "সোনালী ব্যাংক ধানমন্ডি শাখায় ১ হাজার টাকা জমা দিলাম"...');
         playVoiceTone(523, 784);
       };
 

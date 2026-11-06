@@ -10,9 +10,22 @@ export interface RealtimeAlert {
   timestamp: string;
 }
 
+export interface ConnectedDeviceInfo {
+  id: string;
+  userId: number;
+  memberId: string;
+  role: string;
+  ip: string;
+  deviceName: string;
+  deviceType: 'mobile' | 'tablet' | 'desktop' | 'unknown';
+  connectedAt: string;
+}
+
 interface RealtimeContextType {
   isConnected: boolean;
   onlineDevices: number;
+  connectedDevices: ConnectedDeviceInfo[];
+  refreshDevices: () => Promise<void>;
   lastSyncAt: string | null;
   alerts: RealtimeAlert[];
   dismissAlert: (id: string) => void;
@@ -61,10 +74,27 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const { token, user } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [onlineDevices, setOnlineDevices] = useState(1);
+  const [connectedDevices, setConnectedDevices] = useState<ConnectedDeviceInfo[]>([]);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [alerts, setAlerts] = useState<RealtimeAlert[]>([]);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const refreshDevices = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('/api/realtime/devices', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.devices)) {
+          setConnectedDevices(data.devices);
+          setOnlineDevices(data.devices.length);
+        }
+      }
+    } catch {}
+  }, [token]);
 
   const addAlert = useCallback((type: RealtimeAlert['type'], title: string, message: string) => {
     const newAlert: RealtimeAlert = {
@@ -122,6 +152,7 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           try {
             const data = JSON.parse(e.data);
             if (data.onlineDevices) setOnlineDevices(data.onlineDevices);
+            if (Array.isArray(data.devices)) setConnectedDevices(data.devices);
             setLastSyncAt(data.timestamp || new Date().toISOString());
           } catch {}
         });
@@ -130,6 +161,7 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           try {
             const data = JSON.parse(e.data);
             if (data.onlineDevices) setOnlineDevices(data.onlineDevices);
+            if (Array.isArray(data.devices)) setConnectedDevices(data.devices);
           } catch {}
         });
 
@@ -214,6 +246,8 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       value={{
         isConnected,
         onlineDevices,
+        connectedDevices,
+        refreshDevices,
         lastSyncAt,
         alerts,
         dismissAlert,

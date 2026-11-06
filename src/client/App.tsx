@@ -83,6 +83,51 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  // Smart Android Hardware Back Button Handling
+  React.useEffect(() => {
+    (window as any).handleAndroidBack = () => {
+      // 1. Dispatch custom back event so modals (AIAssistantModal, ReceiptModal, etc.) can intercept and close
+      const backEvent = new CustomEvent('pkss:backpress', { cancelable: true });
+      window.dispatchEvent(backEvent);
+      if (backEvent.defaultPrevented) {
+        return true;
+      }
+
+      // 2. Close global modals if open
+      if (globalPassbookOpen) {
+        setGlobalPassbookOpen(false);
+        return true;
+      }
+      if (globalShareCertOpen) {
+        setGlobalShareCertOpen(false);
+        return true;
+      }
+      if (globalKycOpen) {
+        setGlobalKycOpen(false);
+        return true;
+      }
+
+      // 3. Close mobile sidebar if open
+      if (isSidebarOpen) {
+        setIsSidebarOpen(false);
+        return true;
+      }
+
+      // 4. If currently on a subpage, navigate back to 'dashboard'
+      if (currentPath !== 'dashboard') {
+        setCurrentPath('dashboard');
+        return true;
+      }
+
+      // 5. Already on root dashboard with no open modals: return false to let Android trigger double-tap to exit
+      return false;
+    };
+
+    return () => {
+      delete (window as any).handleAndroidBack;
+    };
+  }, [currentPath, isSidebarOpen, globalPassbookOpen, globalShareCertOpen, globalKycOpen]);
+
   const [publicView, setPublicView] = useState<'login' | 'register' | 'verify'>(() => {
     const path = window.location.pathname;
     if (path.startsWith('/verify')) return 'verify';

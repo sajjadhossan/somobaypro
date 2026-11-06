@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { RealtimeService } from '../services/realtime.service';
+import { RealtimeService, parseDeviceInfo } from '../services/realtime.service';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'pkss_society_secure_jwt_secret_key_2026';
@@ -34,12 +34,22 @@ router.get('/events', (req: Request, res: Response) => {
   const userId = decoded.id || decoded.userId;
   const clientId = `conn-${userId}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
+  const rawIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+  const cleanIp = rawIp.replace(/^.*:/, '');
+  const userAgent = (req.headers['user-agent'] as string) || 'Unknown Device';
+  const { deviceName, deviceType } = parseDeviceInfo(userAgent);
+
   const client = {
     id: clientId,
     userId: userId,
     memberId: decoded.memberId,
     role: decoded.role,
     res,
+    ip: cleanIp || '127.0.0.1',
+    userAgent,
+    deviceName,
+    deviceType,
+    connectedAt: new Date().toISOString(),
   };
 
   RealtimeService.addClient(client);
@@ -48,6 +58,20 @@ router.get('/events', (req: Request, res: Response) => {
   req.on('close', () => {
     RealtimeService.removeClient(clientId);
   });
+});
+
+// GET /api/realtime/devices - List of currently connected devices
+router.get('/devices', (req: Request, res: Response) => {
+  const token = (req.query.token as string) || (req.headers.authorization ? req.headers.authorization.split(' ')[1] : null);
+  let userId: number | undefined;
+  if (token) {
+    try {
+      const decoded: any = jwt.verify(token, JWT_SECRET);
+      userId = decoded.id || decoded.userId;
+    } catch {}
+  }
+  const devices = RealtimeService.getConnectedDevices(userId);
+  res.json({ success: true, count: devices.length, devices });
 });
 
 // GET /api/realtime/stats - Active devices count

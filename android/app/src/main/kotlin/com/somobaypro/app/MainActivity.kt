@@ -8,6 +8,9 @@ import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
 import android.os.Bundle
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.webkit.*
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -21,6 +24,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var webView: WebView
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
+
+    // Double-tap to exit variables
+    private var backPressedTime: Long = 0
+    private var backToast: Toast? = null
+
+    // Native Speech Recognizer instance
+    private var speechRecognizer: SpeechRecognizer? = null
 
     private val fileChooserLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -87,7 +97,7 @@ class MainActivity : AppCompatActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 1001) {
+        if (requestCode == 1001 || requestCode == 1002) {
             val allGranted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
             if (allGranted) {
                 Toast.makeText(this, "সোসাইটি অ্যাপের সকল অনুমতি সফলভাবে প্রদান করা হয়েছে", Toast.LENGTH_SHORT).show()
@@ -112,6 +122,9 @@ class MainActivity : AppCompatActivity() {
         settings.loadWithOverviewMode = true
         settings.setSupportZoom(false)
         settings.cacheMode = WebSettings.LOAD_DEFAULT
+
+        // Register Native Speech Recognition and Device Bridge to Javascript
+        webView.addJavascriptInterface(AndroidVoiceBridge(), "AndroidVoiceBridge")
 
         webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
@@ -180,12 +193,150 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Android Native Speech Recognition Bridge for 100% active and reliable Bengali voice input
+     */
+    inner class AndroidVoiceBridge {
+
+        @JavascriptInterface
+        fun isNativeVoiceSupported(): Boolean {
+            return SpeechRecognizer.isRecognitionAvailable(this@MainActivity)
+        }
+
+        @JavascriptInterface
+        fun startListening(lang: String?) {
+            val speechLang = if (!lang.isNullOrBlank()) lang else "bn-BD"
+            runOnUiThread {
+                if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.RECORD_AUDIO), 1002)
+                    webView.evaluateJavascript("window.onNativeSpeechError && window.onNativeSpeechError('মাইক্রোফোন ব্যবহারের অনুমতি প্রয়োজন।');", null)
+                    return@runOnUiThread
+                }
+
+                try {
+                    speechRecognizer?.destroy()
+                    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this@MainActivity)
+
+                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, speechLang)
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, speechLang)
+                        putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, speechLang)
+                        putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                    }
+
+                    speechRecognizer?.setRecognitionListener(object : RecognitionListener {
+                        override fun onReadyForSpeech(params: Bundle?) {
+                            webView.evaluateJavascript("window.onNativeSpeechReady && window.onNativeSpeechReady();", null)
+                        }
+
+                        override fun onBeginningOfSpeech() {
+                            webView.evaluateJavascript("window.onNativeSpeechStarted && window.onNativeSpeechStarted();", null)
+                        }
+
+                        override fun onRmsChanged(rmsdB: Float) {
+                            webView.evaluateJavascript("window.onNativeSpeechRms && window.onNativeSpeechRms($rmsdB);", null)
+                        }
+
+                        override fun onBufferReceived(buffer: ByteArray?) {}
+
+                        override fun onEndOfSpeech() {
+                            webView.evaluateJavascript("window.onNativeSpeechEnded && window.onNativeSpeechEnded();", null)
+                        }
+
+                        override fun onError(error: Int) {
+                            val errorMsg = when (error) {
+                                SpeechRecognizer.ERROR_AUDIO -> "অডিও রেকর্ডিং সমস্যা"
+                                SpeechRecognizer.ERROR_CLIENT -> "ক্লায়েন্ট এরর"
+                                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "মাইক্রোফোন অনুমতি নেই"
+                                SpeechRecognizer.ERROR_NETWORK -> "নেটওয়ার্ক সমস্যা"
+                                SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "নেটওয়ার্ক টাইমআউট"
+                                SpeechRecognizer.ERROR_NO_MATCH -> "কোনো কথা বোঝা যায়নি, আবার বলুন"
+                                SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "ভয়েস ইঞ্জিন ব্যস্ত রয়েছে"
+                                SpeechRecognizer.ERROR_SERVER -> "ভয়েস সার্ভার ত্রুটি"
+                                SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "কথা শনাক্তের সময় শেষ"
+                                else -> "ভয়েস শনাক্তকরণ ত্রুটি"
+                            }
+                            webView.evaluateJavascript("window.onNativeSpeechError && window.onNativeSpeechError('$errorMsg');", null)
+                        }
+
+                        override fun onResults(results: Bundle?) {
+                            val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            if (!matches.isNullOrEmpty()) {
+                                val text = matches[0].replace("'", "\\'").replace("\n", " ").trim()
+                                webView.evaluateJavascript("window.onNativeSpeechResult && window.onNativeSpeechResult('$text');", null)
+                            } else {
+                                webView.evaluateJavascript("window.onNativeSpeechEnded && window.onNativeSpeechEnded();", null)
+                            }
+                        }
+
+                        override fun onPartialResults(partialResults: Bundle?) {
+                            val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            if (!matches.isNullOrEmpty()) {
+                                val text = matches[0].replace("'", "\\'").replace("\n", " ").trim()
+                                webView.evaluateJavascript("window.onNativeSpeechPartial && window.onNativeSpeechPartial('$text');", null)
+                            }
+                        }
+
+                        override fun onEvent(eventType: Int, params: Bundle?) {}
+                    })
+
+                    speechRecognizer?.startListening(intent)
+                } catch (e: Exception) {
+                    webView.evaluateJavascript("window.onNativeSpeechError && window.onNativeSpeechError('${e.localizedMessage}');", null)
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun stopListening() {
+            runOnUiThread {
+                try {
+                    speechRecognizer?.stopListening()
+                } catch (e: Exception) {}
+            }
+        }
+    }
+
+    /**
+     * Smart Back Button handling with Double-Tap to Exit prevention
+     */
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            super.onBackPressed()
+        // First, check if Javascript in React handles the back press (e.g. closes modal, drawer, or goes back to dashboard)
+        webView.evaluateJavascript(
+            "(function() { try { if (window.handleAndroidBack && window.handleAndroidBack()) { return 'handled'; } } catch(e){} return 'unhandled'; })()"
+        ) { result ->
+            val cleanResult = result?.replace("\"", "")?.trim() ?: "unhandled"
+            if (cleanResult == "handled") {
+                // React SPA handled closing the modal/menu/subtab
+                return@evaluateJavascript
+            }
+
+            // If not handled by React, check WebView browser history
+            if (webView.canGoBack()) {
+                webView.goBack()
+            } else {
+                // At the root page: Double-tap to exit prevention
+                if (backPressedTime + 2000 > System.currentTimeMillis()) {
+                    backToast?.cancel()
+                    finish()
+                } else {
+                    backToast = Toast.makeText(this, "অ্যাপ থেকে বের হতে আবার ব্যাক চাপুন", Toast.LENGTH_SHORT)
+                    backToast?.show()
+                    backPressedTime = System.currentTimeMillis()
+                }
+            }
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        try {
+            speechRecognizer?.destroy()
+            webView.removeJavascriptInterface("AndroidVoiceBridge")
+            webView.destroy()
+        } catch (e: Exception) {}
     }
 }

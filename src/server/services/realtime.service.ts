@@ -6,6 +6,42 @@ export interface RealtimeClient {
   memberId: string;
   role: string;
   res: Response;
+  ip: string;
+  userAgent: string;
+  deviceName: string;
+  deviceType: 'mobile' | 'tablet' | 'desktop' | 'unknown';
+  connectedAt: string;
+}
+
+export function parseDeviceInfo(userAgent: string): { deviceName: string; deviceType: 'mobile' | 'tablet' | 'desktop' | 'unknown' } {
+  const ua = (userAgent || '').toLowerCase();
+  let deviceName = 'ওয়েব ব্রাউজার';
+  let deviceType: 'mobile' | 'tablet' | 'desktop' | 'unknown' = 'desktop';
+
+  if (ua.includes('somobaypro')) {
+    deviceName = 'SomobayPro অ্যান্ড্রয়েড অ্যাপ';
+    deviceType = 'mobile';
+  } else if (ua.includes('android')) {
+    deviceName = 'অ্যান্ড্রয়েড ফোন (Chrome/WebView)';
+    deviceType = 'mobile';
+  } else if (ua.includes('iphone')) {
+    deviceName = 'আইফোন (Safari)';
+    deviceType = 'mobile';
+  } else if (ua.includes('ipad')) {
+    deviceName = 'আইপ্যাড (Safari/Tablet)';
+    deviceType = 'tablet';
+  } else if (ua.includes('windows')) {
+    deviceName = 'উইন্ডোজ পিসি (ডেস্কটপ)';
+    deviceType = 'desktop';
+  } else if (ua.includes('macintosh') || ua.includes('mac os')) {
+    deviceName = 'অ্যাপল ম্যাক (ডেস্কটপ)';
+    deviceType = 'desktop';
+  } else if (ua.includes('linux')) {
+    deviceName = 'লিনাক্স ডিভাইস';
+    deviceType = 'desktop';
+  }
+
+  return { deviceName, deviceType };
 }
 
 export class RealtimeService {
@@ -36,21 +72,44 @@ export class RealtimeService {
     this.clients.set(client.id, client);
     this.init();
 
-    // Send initial welcome & sync handshake
+    // Send initial welcome & sync handshake with devices
     try {
       client.res.write(
         `event: CONNECTED\ndata: ${JSON.stringify({
           message: 'রিয়েলটাইম ক্লাউড সিঙ্ক সফলভাবে সংযুক্ত হয়েছে।',
           onlineDevices: this.clients.size,
+          devices: this.getConnectedDevices(),
           timestamp: new Date().toISOString(),
         })}\n\n`
       );
 
-      // Notify others of updated device count
+      // Notify others of updated device count and list
       this.broadcastDeviceCount();
     } catch {
       this.removeClient(client.id);
     }
+  }
+
+  /**
+   * Get list of connected devices
+   */
+  static getConnectedDevices(userId?: number) {
+    const list: any[] = [];
+    for (const c of this.clients.values()) {
+      if (!userId || c.userId === userId) {
+        list.push({
+          id: c.id,
+          userId: c.userId,
+          memberId: c.memberId,
+          role: c.role,
+          ip: c.ip,
+          deviceName: c.deviceName,
+          deviceType: c.deviceType,
+          connectedAt: c.connectedAt,
+        });
+      }
+    }
+    return list;
   }
 
   /**
@@ -118,6 +177,7 @@ export class RealtimeService {
   private static broadcastDeviceCount() {
     const data = `event: DEVICE_STATS\ndata: ${JSON.stringify({
       onlineDevices: this.clients.size,
+      devices: this.getConnectedDevices(),
     })}\n\n`;
 
     for (const client of this.clients.values()) {
