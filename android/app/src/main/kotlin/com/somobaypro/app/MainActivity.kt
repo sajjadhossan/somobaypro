@@ -110,6 +110,8 @@ class MainActivity : AppCompatActivity() {
         // Set brand green background color so screen is never glaring white while loading
         webView.setBackgroundColor(android.graphics.Color.parseColor("#064e3b"))
 
+        webView.overScrollMode = android.view.View.OVER_SCROLL_NEVER
+        webView.isHorizontalScrollBarEnabled = false
         val settings = webView.settings
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
@@ -121,6 +123,8 @@ class MainActivity : AppCompatActivity() {
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         settings.setSupportZoom(false)
+        settings.builtInZoomControls = false
+        settings.displayZoomControls = false
         settings.cacheMode = WebSettings.LOAD_DEFAULT
 
         // Register Native Speech Recognition and Device Bridge to Javascript

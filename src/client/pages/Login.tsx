@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { 
   Lock, Phone, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, 
-  UserPlus, QrCode, AlertCircle, CheckCircle, Sparkles, Building2, User 
+  UserPlus, QrCode, AlertCircle, CheckCircle, Sparkles, Building2, User,
+  ScanFace, Camera, RefreshCw
 } from 'lucide-react';
 
 interface LoginProps {
@@ -12,7 +13,7 @@ interface LoginProps {
 
 export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVerify }) => {
   const { login, society, language, setLanguage, t } = useAuth();
-  const [authMode, setAuthMode] = useState<'mobile' | 'neon'>('mobile');
+  const [authMode, setAuthMode] = useState<'mobile' | 'face' | 'neon'>('mobile');
   const [neonIsSignUp, setNeonIsSignUp] = useState(false);
   const [neonName, setNeonName] = useState('');
   const [neonEmail, setNeonEmail] = useState('');
@@ -26,6 +27,13 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Face ID State
+  const [faceCameraActive, setFaceCameraActive] = useState(false);
+  const [faceIdentifier, setFaceIdentifier] = useState('');
+  const [faceScanning, setFaceScanning] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const faceStreamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     fetch('/api/settings/public-societies')
@@ -98,6 +106,91 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
     }
   };
 
+  const startFaceCamera = async () => {
+    setError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } },
+        audio: false,
+      });
+      faceStreamRef.current = stream;
+      setFaceCameraActive(true);
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+    } catch (err) {
+      setError('ক্যামেরা চালু করা সম্ভব হয়নি। অনুগ্রহ করে ক্যামেরা অনুমতি দিন।');
+    }
+  };
+
+  const stopFaceCamera = () => {
+    if (faceStreamRef.current) {
+      faceStreamRef.current.getTracks().forEach((track) => track.stop());
+      faceStreamRef.current = null;
+    }
+    setFaceCameraActive(false);
+  };
+
+  useEffect(() => {
+    return () => {
+      stopFaceCamera();
+    };
+  }, []);
+
+  const handleFaceLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!videoRef.current || !faceCameraActive) {
+      startFaceCamera();
+      return;
+    }
+    setError(null);
+    setFaceScanning(true);
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 480;
+      canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const video = videoRef.current;
+      const minDim = Math.min(video.videoWidth || 480, video.videoHeight || 480);
+      const startX = ((video.videoWidth || 480) - minDim) / 2;
+      const startY = ((video.videoHeight || 480) - minDim) / 2;
+
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, startX, startY, minDim, minDim, 0, 0, canvas.width, canvas.height);
+
+      const base64Image = canvas.toDataURL('image/jpeg', 0.85);
+
+      const res = await fetch('/api/auth/face-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: faceIdentifier.trim() || undefined,
+          imageBase64: base64Image,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.token) {
+        stopFaceCamera();
+        setSuccessMessage(data.message || 'ফেস ভেরিফিকেশন সফল! প্রবেশ করা হচ্ছে...');
+        setTimeout(() => {
+          login(data.token, data.user);
+        }, 500);
+      } else {
+        setError(data.error || 'ফেস ভেরিফিকেশন ব্যর্থ হয়েছে। আলোর দিকে মুখ রেখে আবার চেষ্টা করুন।');
+      }
+    } catch (err: any) {
+      setError('সার্ভার যোগাযোগে সমস্যা হয়েছে। আবার চেষ্টা করুন।');
+    } finally {
+      setFaceScanning(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 flex flex-col justify-between p-4 sm:p-6 md:p-8">
@@ -167,28 +260,139 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
           )}
 
           {/* Auth Method Tabs */}
-          <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+          <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold gap-1">
             <button
               type="button"
-              onClick={() => { setAuthMode('mobile'); setError(null); }}
-              className={`flex-1 py-2 rounded-lg transition flex items-center justify-center gap-1.5 ${
+              onClick={() => { stopFaceCamera(); setAuthMode('mobile'); setError(null); }}
+              className={`flex-1 py-2 rounded-lg transition flex items-center justify-center gap-1 ${
                 authMode === 'mobile' ? 'bg-white text-emerald-800 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               <Phone className="w-3.5 h-3.5" />
-              <span>{language === 'bn' ? 'মোবাইল আইডি' : 'Mobile ID'}</span>
+              <span>{language === 'bn' ? 'মোবাইল' : 'Mobile'}</span>
             </button>
             <button
               type="button"
-              onClick={() => { setAuthMode('neon'); setError(null); }}
-              className={`flex-1 py-2 rounded-lg transition flex items-center justify-center gap-1.5 ${
+              onClick={() => { setAuthMode('face'); setError(null); }}
+              className={`flex-1 py-2 rounded-lg transition flex items-center justify-center gap-1 ${
+                authMode === 'face' ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <ScanFace className="w-3.5 h-3.5" />
+              <span>{language === 'bn' ? '🤳 ফেস আইডি' : 'Face ID'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => { stopFaceCamera(); setAuthMode('neon'); setError(null); }}
+              className={`flex-1 py-2 rounded-lg transition flex items-center justify-center gap-1 ${
                 authMode === 'neon' ? 'bg-emerald-600 text-white shadow-sm font-bold' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               <Mail className="w-3.5 h-3.5" />
-              <span>{language === 'bn' ? 'ইমেইল (Neon Auth)' : 'Email (Neon Auth)'}</span>
+              <span>{language === 'bn' ? 'ইমেইল' : 'Email'}</span>
             </button>
           </div>
+
+          {/* Face ID Biometric Login View */}
+          {authMode === 'face' && (
+            <div className="space-y-4 text-center animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl text-left text-xs text-emerald-900 flex items-start gap-2.5">
+                <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block font-bold">কেওয়াইসি বায়োমেট্রিক ফেস আনলক:</strong>
+                  <span>আপনার ফ্রন্ট ক্যামেরা অন করে মুখের স্ক্যান নিন। কেওয়াইসি ছবির সাথে মিলে গেলে তাৎক্ষণিক লগইন হবে।</span>
+                </div>
+              </div>
+
+              {/* Optional Identifier field */}
+              <div className="text-left">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  {language === 'bn' ? 'মোবাইল / মেম্বার আইডি (ঐচ্ছিক)' : 'Mobile or Member ID (Optional)'}
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={faceIdentifier}
+                    onChange={(e) => setFaceIdentifier(e.target.value)}
+                    placeholder="খালি রাখলে স্বয়ংক্রিয় শনাক্ত করবে"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none transition"
+                  />
+                </div>
+              </div>
+
+              {/* Camera Scanner Viewport */}
+              <div className="flex flex-col items-center justify-center my-2">
+                {faceCameraActive ? (
+                  <div className="relative w-52 h-52 rounded-full overflow-hidden border-4 border-emerald-500 shadow-2xl bg-black">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover transform -scale-x-100"
+                    />
+                    {/* Glowing Biometric HUD Overlay */}
+                    <div className="absolute inset-0 border-2 border-emerald-400/50 rounded-full animate-pulse pointer-events-none" />
+                    <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-[bounce_2s_infinite]" />
+                    <div className="absolute bottom-2 inset-x-0 text-center">
+                      <span className="text-[10px] bg-black/70 text-emerald-300 px-3 py-0.5 rounded-full font-mono font-bold tracking-wider">
+                        {faceScanning ? 'যাচাই করা হচ্ছে...' : 'ক্যামেরায় তাকান'}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-44 h-44 rounded-full border-4 border-dashed border-emerald-300 bg-emerald-50/50 flex flex-col items-center justify-center p-4 shadow-inner">
+                    <ScanFace className="w-16 h-16 text-emerald-500 animate-pulse mb-1" />
+                    <span className="text-[11px] font-bold text-emerald-900">ফেস আইডি স্ক্যানার</span>
+                    <span className="text-[10px] text-emerald-600 mt-0.5">ক্যামেরা বন্ধ রয়েছে</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2">
+                {!faceCameraActive ? (
+                  <button
+                    type="button"
+                    onClick={startFaceCamera}
+                    className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-900/20 transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>ক্যামেরা চালু করুন</span>
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={faceScanning}
+                      onClick={() => handleFaceLogin()}
+                      className="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-lg shadow-emerald-900/20 transition flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {faceScanning ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>যাচাই হচ্ছে...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ScanFace className="w-4 h-4" />
+                          <span>🤳 স্ক্যান ও সরাসরি লগইন</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={stopFaceCamera}
+                      className="px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer"
+                    >
+                      বন্ধ
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {authMode === 'mobile' ? (
             <form onSubmit={handleSubmit} className="space-y-4">
