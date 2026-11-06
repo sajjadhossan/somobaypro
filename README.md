@@ -5,6 +5,13 @@ A complete, production-ready, secure, and modern centralized software platform d
 
 ---
 
+### 🌐 লাইভ লিংকসমূহ (Live Deployments & Downloads):
+- 🌐 **Vercel ওয়েব অ্যাপ:** [https://somobaypro.vercel.app](https://somobaypro.vercel.app)
+- 🚀 **Render লাইভ সার্ভার:** [https://somobaypro.onrender.com](https://somobaypro.onrender.com)
+- 📱 **অ্যান্ড্রয়েড APK ডাউনলোড:** [SomobayPro Latest Release APK](https://github.com/sajjadhossan/somobaypro/releases/latest)
+
+---
+
 ### ⚠️ IMPORTANT BUSINESS REQUIREMENT: STRICT NO-LOAN POLICY
 > **THIS SOCIETY WILL NOT PROVIDE ANY LOANS.**
 > No loan, lending, borrowing, interest, loan repayment, or loan application functionality exists in this system.
