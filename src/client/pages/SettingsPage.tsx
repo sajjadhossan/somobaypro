@@ -363,6 +363,25 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
+  const handleDeleteSociety = async (id: number, name: string) => {
+    if (!confirm(`আপনি কি নিশ্চিতভাবে '${name}' সমিতি এবং এর সমস্ত তথ্য ও কার্যকলাপ মুছে ফেলতে চান? এটি আর ফিরিয়ে আনা যাবে না।`)) return;
+    try {
+      const res = await fetch(`/api/settings/societies/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${localStorage.getItem('pkss_token')}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'সমিতি সফলভাবে মুছে ফেলা হয়েছে।');
+        fetchSettingsAndPermissions();
+      } else {
+        alert(data.error || 'সমিতি মুছতে ব্যর্থ হয়েছে।');
+      }
+    } catch (err) {
+      alert('সার্ভার যোগাযোগ ত্রুটি।');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -517,7 +536,7 @@ export const SettingsPage: React.FC = () => {
                   <p className="text-[11px] text-slate-600">ডিফল্ট চাঁদা: ৳{soc.monthly_subscription_default}/মাস</p>
                 </div>
 
-                <div>
+                <div className="space-y-2">
                   {isCurrent ? (
                     <div className="w-full py-2 bg-emerald-100 text-emerald-800 text-center rounded-xl text-xs font-bold">
                       এই প্রোফাইলটি ওপেন করা আছে
@@ -528,6 +547,15 @@ export const SettingsPage: React.FC = () => {
                       className="w-full py-2 bg-slate-900 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition"
                     >
                       এই প্রোফাইলে প্রবেশ করুন
+                    </button>
+                  )}
+                  {soc.id !== 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSociety(soc.id, soc.name_bn)}
+                      className="w-full py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-750 text-rose-700 rounded-xl text-xs font-bold border border-rose-200 transition flex items-center justify-center gap-1"
+                    >
+                      <span>🗑️ সমিতি ও কার্যকলাপ মুছুন</span>
                     </button>
                   )}
                 </div>

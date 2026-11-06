@@ -19,13 +19,13 @@ router.post('/login', (req: Request, res: Response) => {
 
   const cleanIdentifier = identifier.trim();
 
-  // Find user by mobile or member_id
+  // Find user by mobile, member_id, or email
   const user = db.prepare(`
     SELECT u.*, m.full_name_bn, m.full_name_en, m.membership_status, m.membership_type, m.designation
     FROM users u
     LEFT JOIN members m ON u.member_id = m.member_id
-    WHERE u.mobile = ? OR u.member_id = ?
-  `).get(cleanIdentifier, cleanIdentifier) as any;
+    WHERE u.mobile = ? OR u.member_id = ? OR u.email = ?
+  `).get(cleanIdentifier, cleanIdentifier, cleanIdentifier) as any;
 
   if (!user) {
     AuditService.logLogin({
@@ -35,7 +35,7 @@ router.post('/login', (req: Request, res: Response) => {
       status: 'failed',
       failureReason: 'User not found',
     });
-    return res.status(401).json({ error: 'Invalid credentials. Mobile or Member ID not found.' });
+    return res.status(401).json({ error: 'Invalid credentials. Mobile, Member ID or Email not found.' });
   }
 
   // Check if locked

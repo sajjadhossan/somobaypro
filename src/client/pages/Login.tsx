@@ -98,22 +98,6 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
     }
   };
 
-  // Demo accounts for instant 1-click testing of all 7 roles
-  const testAccounts = [
-    { role: 'super_admin', label: 'সুপার এডমিন', phone: '01711000001', pass: 'Password123!' },
-    { role: 'admin', label: 'এডমিন', phone: '01711000002', pass: 'Password123!' },
-    { role: 'president', label: 'সভাপতি', phone: '01711000003', pass: 'Password123!' },
-    { role: 'general_secretary', label: 'সাধারণ সম্পাদক', phone: '01711000004', pass: 'Password123!' },
-    { role: 'treasurer', label: 'কোষাধ্যক্ষ', phone: '01711000005', pass: 'Password123!' },
-    { role: 'advisor', label: 'উপদেষ্টা', phone: '01711000006', pass: 'Password123!' },
-    { role: 'general_member', label: 'সাধারণ সদস্য', phone: '01711000007', pass: 'Password123!' },
-  ];
-
-  const handleQuickFill = (acc: typeof testAccounts[0]) => {
-    setIdentifier(acc.phone);
-    setPassword(acc.pass);
-    setError(null);
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-900 flex flex-col justify-between p-4 sm:p-6 md:p-8">
@@ -403,25 +387,6 @@ export const Login: React.FC<LoginProps> = ({ onNavigateRegister, onNavigateVeri
             </form>
           )}
 
-          {/* Quick-Fill 1-Click Role Logins for Testing */}
-          <div className="pt-2 border-t border-slate-100">
-            <p className="text-[11px] font-bold text-slate-500 mb-2 flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>{language === 'bn' ? 'ওয়ান-ক্লিক ডেমো লগইন (৭টি ভূমিকা):' : 'One-Click Role Login Demo:'}</span>
-            </p>
-            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-              {testAccounts.map((acc) => (
-                <button
-                  key={acc.role}
-                  type="button"
-                  onClick={() => handleQuickFill(acc)}
-                  className="px-2 py-1.5 text-[10px] font-semibold text-slate-700 bg-slate-100 hover:bg-emerald-100 hover:text-emerald-900 rounded-lg border border-slate-200 transition truncate text-left"
-                >
-                  {acc.label}
-                </button>
-              ))}
-            </div>
-          </div>
 
           {/* Public Action Links */}
           <div className="pt-3 border-t border-slate-100 grid grid-cols-2 gap-2 text-center text-xs">

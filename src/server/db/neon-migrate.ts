@@ -119,16 +119,10 @@ export async function migrateAndSeedNeon() {
     console.log('✅ Default society settings seeded into Neon!');
   }
 
-  // 3. Seed Primary Roles & Users
+  // 3. Seed Super Admin User
   const passwordHash = await bcrypt.hash('Password123!', 10);
   const seedUsers = [
-    { id: 'SOC-2026-0001', mobile: '01711000001', name_bn: 'সুপার এডমিন (প্রধান নিয়ন্ত্রক)', name_en: 'Super Admin', role: 'super_admin' },
-    { id: 'SOC-2026-0002', mobile: '01711000002', name_bn: 'এডমিন (সোসাইটি প্রশাসক)', name_en: 'Society Admin', role: 'admin' },
-    { id: 'SOC-2026-0003', mobile: '01711000003', name_bn: 'সভাপতি (কার্যনির্বাহী পরিষদ)', name_en: 'President', role: 'president' },
-    { id: 'SOC-2026-0004', mobile: '01711000004', name_bn: 'সাধারণ সম্পাদক', name_en: 'General Secretary', role: 'general_secretary' },
-    { id: 'SOC-2026-0005', mobile: '01711000005', name_bn: 'কোষাধ্যক্ষ (অর্থ সম্পাদক)', name_en: 'Treasurer', role: 'treasurer' },
-    { id: 'SOC-2026-0006', mobile: '01711000006', name_bn: 'উপদেষ্টা পরিষদ সদস্য', name_en: 'Advisor', role: 'advisor' },
-    { id: 'SOC-2026-0007', mobile: '01711000007', name_bn: 'সাধারণ সদস্য (সাদমান সাকিব)', name_en: 'General Member', role: 'general_member' },
+    { id: 'SOC-2026-0001', mobile: '01711000001', name_bn: 'মোহাম্মদ সাজ্জাদ হোসেন', name_en: 'Mohammad Sajjad Hossain', role: 'super_admin' },
   ];
 
   for (const u of seedUsers) {
@@ -146,7 +140,7 @@ export async function migrateAndSeedNeon() {
     }
   }
 
-  console.log('✅ 7 Primary Role users seeded into Neon PostgreSQL!');
+  console.log('✅ Super Admin user seeded into Neon PostgreSQL!');
   return { success: true };
 }
 

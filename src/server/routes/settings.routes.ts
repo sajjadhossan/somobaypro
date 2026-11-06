@@ -211,9 +211,57 @@ router.post('/societies/:id/switch', authenticate, requireRole(['super_admin']),
   });
 });
 
-// PUT /api/settings (Update Active Society Profile)
-router.put('/', authenticate, requireRole(['super_admin']), (req: Request, res: Response) => {
+// DELETE /api/settings/societies/:id (Delete Society and all its data)
+router.delete('/societies/:id', authenticate, requireRole(['super_admin']), (req: Request, res: Response) => {
+  const societyId = Number(req.params.id);
+  if (!societyId || isNaN(societyId)) {
+    return res.status(400).json({ error: 'বৈধ সোসাইটি আইডি দিন।' });
+  }
+
+  if (societyId === 1) {
+    return res.status(400).json({ error: 'মূল প্রাথমিক সমিতি (ID: 1) মোছা যাবে না।' });
+  }
+
+  const existing = db.prepare(`SELECT * FROM societies WHERE id = ?`).get(societyId) as any;
+  if (!existing) {
+    return res.status(404).json({ error: 'সোসাইটি পাওয়া যায়নি।' });
+  }
+
+  try {
+    // 1. Delete associated data
+    db.prepare(`DELETE FROM receipts WHERE society_id = ?`).run(societyId);
+    db.prepare(`DELETE FROM payments WHERE society_id = ?`).run(societyId);
+    db.prepare(`DELETE FROM subscription_dues WHERE member_id IN (SELECT member_id FROM members WHERE society_id = ?)`).run(societyId);
+    db.prepare(`DELETE FROM members WHERE society_id = ?`).run(societyId);
+    db.prepare(`DELETE FROM users WHERE society_id = ?`).run(societyId);
+    db.prepare(`DELETE FROM notices WHERE society_id = ?`).run(societyId);
+    db.prepare(`DELETE FROM meetings WHERE society_id = ?`).run(societyId);
+
+    // 2. Delete the society itself
+    db.prepare(`DELETE FROM societies WHERE id = ?`).run(societyId);
+
+    AuditService.log({
+      userId: req.user!.id,
+      userRole: req.user!.role,
+      action: 'DELETE_SOCIETY',
+      entityType: 'societies',
+      entityId: societyId,
+      oldValues: { name_bn: existing.name_bn },
+    });
+
+    return res.json({
+      success: true,
+      message: `সমিতি '${existing.name_bn}' এবং এর যাবতীয় কার্যকলাপ সফলভাবে মুছে ফেলা হয়েছে।`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'সমিতি মুছতে ব্যর্থ হয়েছে।' });
+  }
+});
+
+// PUT /api/settings (Update Society Profile & Branding - Super Admin, President, Admin)
+router.put('/', authenticate, requireRole(['super_admin', 'president', 'admin']), (req: Request, res: Response) => {
   const {
+    societyId: reqSocId,
     nameBn,
     nameEn,
     shortName,
@@ -237,58 +285,11 @@ router.put('/', authenticate, requireRole(['super_admin']), (req: Request, res: 
     geminiModel,
   } = req.body;
 
-  const oldSettings = db.prepare(`SELECT * FROM society_settings WHERE id = 1`).get();
+  const targetSocietyId = req.user!.role === 'super_admin'
+    ? (Number(reqSocId) || req.user!.societyId || 1)
+    : (req.user!.societyId || 1);
 
-  db.prepare(`
-    UPDATE society_settings SET
-      name_bn = COALESCE(?, name_bn),
-      name_en = COALESCE(?, name_en),
-      short_name = COALESCE(?, short_name),
-      reg_no = COALESCE(?, reg_no),
-      address = COALESCE(?, address),
-      district = COALESCE(?, district),
-      upazila = COALESCE(?, upazila),
-      phone = COALESCE(?, phone),
-      email = COALESCE(?, email),
-      website = COALESCE(?, website),
-      est_date = COALESCE(?, est_date),
-      description = COALESCE(?, description),
-      logo_url = COALESCE(?, logo_url),
-      official_signature_url = COALESCE(?, official_signature_url),
-      receipt_footer = COALESCE(?, receipt_footer),
-      monthly_subscription_default = COALESCE(?, monthly_subscription_default),
-      membership_fee_default = COALESCE(?, membership_fee_default),
-      approval_workflow = COALESCE(?, approval_workflow),
-      self_registration_enabled = COALESCE(?, self_registration_enabled),
-      gemini_api_key = COALESCE(?, gemini_api_key),
-      gemini_model = COALESCE(?, gemini_model),
-      updated_at = CURRENT_TIMESTAMP
-    WHERE id = 1
-  `).run(
-    nameBn,
-    nameEn,
-    shortName,
-    regNo,
-    address,
-    district,
-    upazila,
-    phone,
-    email,
-    website,
-    estDate,
-    description,
-    logoUrl,
-    officialSignatureUrl,
-    receiptFooter,
-    monthlySubscriptionDefault ? Number(monthlySubscriptionDefault) : null,
-    membershipFeeDefault ? Number(membershipFeeDefault) : null,
-    approvalWorkflow,
-    selfRegistrationEnabled !== undefined ? (selfRegistrationEnabled ? 1 : 0) : null,
-    geminiApiKey !== undefined ? geminiApiKey : null,
-    geminiModel !== undefined ? geminiModel : null
-  );
-
-  // Sync with active society in societies table
+  // 1. Update societies table
   try {
     db.prepare(`
       UPDATE societies SET
@@ -298,22 +299,93 @@ router.put('/', authenticate, requireRole(['super_admin']), (req: Request, res: 
         reg_no = COALESCE(?, reg_no),
         address = COALESCE(?, address),
         phone = COALESCE(?, phone),
-        email = COALESCE(?, email)
+        email = COALESCE(?, email),
+        monthly_subscription_default = COALESCE(?, monthly_subscription_default),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).run(
+      nameBn,
+      nameEn,
+      shortName,
+      regNo,
+      address,
+      phone,
+      email,
+      monthlySubscriptionDefault ? Number(monthlySubscriptionDefault) : null,
+      targetSocietyId
+    );
+  } catch (err) {
+    console.error('Error updating societies table:', err);
+  }
+
+  // 2. If target is active/primary society (id: 1) or user's active society, sync society_settings
+  if (targetSocietyId === 1 || req.user!.societyId === 1) {
+    const oldSettings = db.prepare(`SELECT * FROM society_settings WHERE id = 1`).get();
+
+    db.prepare(`
+      UPDATE society_settings SET
+        name_bn = COALESCE(?, name_bn),
+        name_en = COALESCE(?, name_en),
+        short_name = COALESCE(?, short_name),
+        reg_no = COALESCE(?, reg_no),
+        address = COALESCE(?, address),
+        district = COALESCE(?, district),
+        upazila = COALESCE(?, upazila),
+        phone = COALESCE(?, phone),
+        email = COALESCE(?, email),
+        website = COALESCE(?, website),
+        est_date = COALESCE(?, est_date),
+        description = COALESCE(?, description),
+        logo_url = COALESCE(?, logo_url),
+        official_signature_url = COALESCE(?, official_signature_url),
+        receipt_footer = COALESCE(?, receipt_footer),
+        monthly_subscription_default = COALESCE(?, monthly_subscription_default),
+        membership_fee_default = COALESCE(?, membership_fee_default),
+        approval_workflow = COALESCE(?, approval_workflow),
+        self_registration_enabled = COALESCE(?, self_registration_enabled),
+        gemini_api_key = COALESCE(?, gemini_api_key),
+        gemini_model = COALESCE(?, gemini_model),
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = 1
-    `).run(nameBn, nameEn, shortName, regNo, address, phone, email);
-  } catch {}
+    `).run(
+      nameBn,
+      nameEn,
+      shortName,
+      regNo,
+      address,
+      district,
+      upazila,
+      phone,
+      email,
+      website,
+      estDate,
+      description,
+      logoUrl,
+      officialSignatureUrl,
+      receiptFooter,
+      monthlySubscriptionDefault ? Number(monthlySubscriptionDefault) : null,
+      membershipFeeDefault ? Number(membershipFeeDefault) : null,
+      approvalWorkflow,
+      selfRegistrationEnabled !== undefined ? (selfRegistrationEnabled ? 1 : 0) : null,
+      geminiApiKey !== undefined ? geminiApiKey : null,
+      geminiModel !== undefined ? geminiModel : null
+    );
 
-  AuditService.log({
-    userId: req.user!.id,
-    userRole: req.user!.role,
-    action: 'UPDATE_SOCIETY_SETTINGS',
-    entityType: 'society_settings',
-    entityId: 1,
-    oldValues: oldSettings,
-    newValues: req.body,
+    AuditService.log({
+      userId: req.user!.id,
+      userRole: req.user!.role,
+      action: 'UPDATE_SOCIETY_SETTINGS',
+      entityType: 'society_settings',
+      entityId: targetSocietyId,
+      oldValues: oldSettings,
+      newValues: req.body,
+    });
+  }
+
+  return res.json({ 
+    success: true, 
+    message: 'সোসাইটি প্রোফাইল, তথ্য ও সেটিংস সফলভাবে আপডেট হয়েছে।' 
   });
-
-  return res.json({ message: 'Society profile and branding updated successfully.' });
 });
 
 // GET /api/settings/backup (Download SQLite Database Backup)

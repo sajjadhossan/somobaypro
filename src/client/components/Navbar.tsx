@@ -230,41 +230,11 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
               </div>
             )}
 
-            {/* Quick Role Switcher */}
+            {/* User Role Badge */}
             {user && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition"
-                  title="Switch between 7 roles"
-                >
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span className="font-semibold">{t(user.role as any)}</span>
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </button>
-
-                {showRoleSwitcher && (
-                  <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in zoom-in-95">
-                    <div className="px-3 py-1.5 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                      {language === 'bn' ? 'টেস্ট রোল পরিবর্তন করুন' : 'Switch Role (Test Mode)'}
-                    </div>
-                    {roles.map((r) => (
-                      <button
-                        key={r.key}
-                        onClick={() => {
-                          quickSwitchRole(r.key);
-                          setShowRoleSwitcher(false);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-emerald-50 transition ${
-                          user.role === r.key ? 'bg-emerald-100/60 font-bold text-emerald-900' : 'text-slate-700'
-                        }`}
-                      >
-                        <span>{language === 'bn' ? r.bn : r.label}</span>
-                        {user.role === r.key && <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>{t(user.role as any)}</span>
               </div>
             )}
 
@@ -392,9 +362,21 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle, isMobileMenuOpen }
       <SignaturePadModal
         isOpen={showSignatureModal}
         onClose={() => setShowSignatureModal(false)}
-        officialRole={user?.role}
-        officialName={user?.fullNameBn}
-        memberId={user?.memberId}
+        onSaveSignature={async (signatureDataUrl: string) => {
+          setShowSignatureModal(false);
+          try {
+            const token = localStorage.getItem('pkss_token');
+            await fetch('/api/settings', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ officialSignatureUrl: signatureDataUrl }),
+            });
+            refreshUserData();
+          } catch (e) {}
+        }}
       />
     </header>
   );

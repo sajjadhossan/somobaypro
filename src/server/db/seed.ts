@@ -119,111 +119,8 @@ export async function seedDatabase() {
     'অনলাইন পেমেন্ট ও সঞ্চয়ী হিসাব'
   );
 
-  // 4. Default Users for all 7 Primary Roles
+  // 4. Default Super Admin User (Founder & Platform Owner)
   const defaultPasswordHash = bcrypt.hashSync('Password123!', 10);
-
-  const initialRoles = [
-    {
-      memberId: 'SOC-2026-0001',
-      fullNameBn: 'মোহাম্মদ সাজ্জাদ হোসেন',
-      fullNameEn: 'Mohammad Sajjad Hossain',
-      mobile: '01711000001',
-      email: 'superadmin@progotikalyan.org',
-      role: 'super_admin',
-      designation: 'প্রধান নিয়ন্ত্রক ও প্রতিষ্ঠাতা',
-      membershipType: 'life',
-    },
-    {
-      memberId: 'SOC-2026-0002',
-      fullNameBn: 'রফিকুল ইসলাম তালুকদার',
-      fullNameEn: 'Rafiqul Islam Talukder',
-      mobile: '01711000002',
-      email: 'admin@progotikalyan.org',
-      role: 'admin',
-      designation: 'প্রশাসক (সিস্টেম এডমিন)',
-      membershipType: 'executive',
-    },
-    {
-      memberId: 'SOC-2026-0003',
-      fullNameBn: 'ড. আবুল কালাম আজাদ',
-      fullNameEn: 'Dr. Abul Kalam Azad',
-      mobile: '01711000003',
-      email: 'president@progotikalyan.org',
-      role: 'president',
-      designation: 'সভাপতি (কার্যনির্বাহী পরিষদ)',
-      membershipType: 'executive',
-    },
-    {
-      memberId: 'SOC-2026-0004',
-      fullNameBn: 'মাহমুদুল হাসান চৌধুরী',
-      fullNameEn: 'Mahmudul Hasan Chowdhury',
-      mobile: '01711000004',
-      email: 'secretary@progotikalyan.org',
-      role: 'general_secretary',
-      designation: 'সাধারণ সম্পাদক',
-      membershipType: 'executive',
-    },
-    {
-      memberId: 'SOC-2026-0005',
-      fullNameBn: 'নুরুল হক মজুমদার',
-      fullNameEn: 'Nurul Haque Mazumder',
-      mobile: '01711000005',
-      email: 'treasurer@progotikalyan.org',
-      role: 'treasurer',
-      designation: 'কোষাধ্যক্ষ (অর্থ সম্পাদক)',
-      membershipType: 'executive',
-    },
-    {
-      memberId: 'SOC-2026-0006',
-      fullNameBn: 'প্রফেসর এম. এ. লতিফ',
-      fullNameEn: 'Prof. M. A. Latif',
-      mobile: '01711000006',
-      email: 'advisor@progotikalyan.org',
-      role: 'advisor',
-      designation: 'প্রধান উপদেষ্টা',
-      membershipType: 'honorary',
-    },
-    {
-      memberId: 'SOC-2026-0007',
-      fullNameBn: 'তানভীর আহমেদ',
-      fullNameEn: 'Tanvir Ahmed',
-      mobile: '01711000007',
-      email: 'tanvir@example.com',
-      role: 'general_member',
-      designation: 'সাধারণ সদস্য',
-      membershipType: 'regular',
-    },
-    {
-      memberId: 'SOC-2026-0008',
-      fullNameBn: 'মোছাঃ নাসরিন আক্তার',
-      fullNameEn: 'Nasrin Akter',
-      mobile: '01711000008',
-      email: 'nasrin@example.com',
-      role: 'general_member',
-      designation: 'সাধারণ সদস্য',
-      membershipType: 'regular',
-    },
-    {
-      memberId: 'SOC-2026-0009',
-      fullNameBn: 'কাজী শাহাদাত হোসেন',
-      fullNameEn: 'Kazi Shahadat Hossain',
-      mobile: '01711000009',
-      email: 'shahadat@example.com',
-      role: 'general_member',
-      designation: 'সাধারণ সদস্য',
-      membershipType: 'regular',
-    },
-    {
-      memberId: 'SOC-2026-0010',
-      fullNameBn: 'ফারহানা ইসলাম সুমি',
-      fullNameEn: 'Farhana Islam Sumi',
-      mobile: '01711000010',
-      email: 'farhana@example.com',
-      role: 'general_member',
-      designation: 'সাধারণ সদস্য',
-      membershipType: 'regular',
-    },
-  ];
 
   const insertMember = db.prepare(`
     INSERT INTO members (
@@ -231,269 +128,48 @@ export async function seedDatabase() {
       nid_number, mobile, email, present_address, permanent_address, occupation,
       joining_date, membership_type, membership_fee, monthly_subscription_amount,
       designation, membership_status, nominee_name, nominee_relation, nominee_mobile,
-      emergency_name, emergency_relation, emergency_mobile, approved_by, approved_at
-    ) VALUES (?, ?, ?, ?, ?, '1985-05-15', 'male', ?, ?, ?, 'ধানমন্ডি, ঢাকা', 'মুন্সীগঞ্জ সদর', 'ব্যবসায়ী/চাকুরিজীবী', '2024-01-01', ?, 500, 1000, ?, 'active', 'মোছাঃ সুফিয়া বেগম', 'স্ত্রী', '01819000000', 'আব্দুল করিম', 'ভাই', '01911000000', 'SOC-2026-0001', CURRENT_TIMESTAMP)
+      emergency_name, emergency_relation, emergency_mobile, approved_by, approved_at, society_id
+    ) VALUES (
+      'SOC-2026-0001', 'মোহাম্মদ সাজ্জাদ হোসেন', 'Mohammad Sajjad Hossain',
+      'মরহুম হাজী আব্দুল জলিল', 'মরহুমা ফাতেমা খাতুন', '1985-05-15', 'male',
+      '19852693847500001', '01711000001', 'hossansajjad1994@gmail.com',
+      'ধানমন্ডি, ঢাকা', 'মুন্সীগঞ্জ সদর', 'সফটওয়্যার প্রতিষ্ঠাতা ও উদ্যোক্তা',
+      '2024-01-01', 'life', 500, 1000,
+      'প্রধান নিয়ন্ত্রক ও প্রতিষ্ঠাতা', 'active',
+      'মোছাঃ সুফিয়া বেগম', 'স্ত্রী', '01819000000',
+      'আব্দুল করিম', 'ভাই', '01911000000',
+      'SOC-2026-0001', CURRENT_TIMESTAMP, 1
+    )
   `);
+  insertMember.run();
 
   const insertUser = db.prepare(`
     INSERT INTO users (
-      member_id, mobile, email, password_hash, role, account_status, permissions
-    ) VALUES (?, ?, ?, ?, ?, 'active', '[]')
+      member_id, mobile, email, password_hash, role, account_status, permissions, society_id
+    ) VALUES ('SOC-2026-0001', '01711000001', 'hossansajjad1994@gmail.com', ?, 'super_admin', 'active', '[]', 1)
   `);
+  insertUser.run(defaultPasswordHash);
 
-  for (let i = 0; i < initialRoles.length; i++) {
-    const r = initialRoles[i];
-    const nid = `1985269384750000${i + 1}`;
-    insertMember.run(
-      r.memberId,
-      r.fullNameBn,
-      r.fullNameEn,
-      'মরহুম হাজী আব্দুল জলিল',
-      'মরহুমা ফাতেমা খাতুন',
-      nid,
-      r.mobile,
-      r.email,
-      r.membershipType,
-      r.designation
-    );
-
-    insertUser.run(
-      r.memberId,
-      r.mobile,
-      r.email,
-      defaultPasswordHash,
-      r.role
-    );
-  }
-
-  // 5. Pre-seed Subscription Dues for Jan, Feb, Mar 2026
-  const months = ['2026-01', '2026-02', '2026-03'];
-  const insertDue = db.prepare(`
-    INSERT INTO subscription_dues (member_id, billing_month, due_amount, paid_amount, status, due_date)
-    VALUES (?, ?, 1000, ?, ?, ?)
-  `);
-
-  for (const r of initialRoles) {
-    // Member 0007 has Jan paid, Feb paid, Mar unpaid
-    // Member 0008 has Jan paid, Feb unpaid, Mar unpaid
-    // Member 0009 has all 3 unpaid
-    // Member 0010 has Jan paid, Feb partial
-    if (r.memberId === 'SOC-2026-0007') {
-      insertDue.run(r.memberId, '2026-01', 1000, 'paid', '2026-01-15');
-      insertDue.run(r.memberId, '2026-02', 1000, 'paid', '2026-02-15');
-      insertDue.run(r.memberId, '2026-03', 0, 'unpaid', '2026-03-15');
-    } else if (r.memberId === 'SOC-2026-0008') {
-      insertDue.run(r.memberId, '2026-01', 1000, 'paid', '2026-01-15');
-      insertDue.run(r.memberId, '2026-02', 0, 'unpaid', '2026-02-15');
-      insertDue.run(r.memberId, '2026-03', 0, 'unpaid', '2026-03-15');
-    } else {
-      for (const m of months) {
-        insertDue.run(r.memberId, m, 1000, 'paid', `${m}-15`);
-      }
-    }
-  }
-
-  // 6. Pre-seed Approved Receipts with QR Verification for Tanvir Ahmed (SOC-2026-0007)
-  const seedReceipts = [
-    {
-      receiptNumber: 'RCP-2026-000001',
-      memberId: 'SOC-2026-0007',
-      amount: 1000,
-      months: '2026-01',
-      depositDate: '2026-01-10',
-      txId: 'SON-DEP-994821',
-      token: crypto.randomBytes(24).toString('hex'),
-    },
-    {
-      receiptNumber: 'RCP-2026-000002',
-      memberId: 'SOC-2026-0007',
-      amount: 1000,
-      months: '2026-02',
-      depositDate: '2026-02-12',
-      txId: 'DBBL-FT-481920',
-      token: crypto.randomBytes(24).toString('hex'),
-    },
-  ];
-
-  for (const rc of seedReceipts) {
-    const subRes = db.prepare(`
-      INSERT INTO payment_submissions (
-        submission_number, member_id, amount, payment_months, society_bank_account_id,
-        member_bank_name, member_branch_name, deposit_date, transaction_id, status,
-        approved_by_id, approved_at
-      ) VALUES (?, ?, ?, ?, 1, 'Dutch-Bangla Bank', 'Mirpur', ?, ?, 'approved', 'SOC-2026-0005', CURRENT_TIMESTAMP)
-    `).run(
-      `SUB-${rc.receiptNumber.slice(4)}`,
-      rc.memberId,
-      rc.amount,
-      rc.months,
-      rc.depositDate,
-      rc.txId
-    );
-
-    const qrUrl = `http://localhost:5173/verify/${rc.receiptNumber}?token=${rc.token}`;
-    const qrData = await QRCode.toDataURL(qrUrl, { margin: 1, width: 256 });
-
-    db.prepare(`
-      INSERT INTO receipts (
-        receipt_number, payment_submission_id, member_id, amount, payment_months,
-        bank_name, account_number, deposit_date, transaction_id, verification_token,
-        qr_code_data, status, issued_by_id
-      ) VALUES (?, ?, ?, ?, ?, 'Sonali Bank PLC', '0102030405060', ?, ?, ?, ?, 'valid', 'SOC-2026-0005')
-    `).run(
-      rc.receiptNumber,
-      subRes.lastInsertRowid,
-      rc.memberId,
-      rc.amount,
-      rc.months,
-      rc.depositDate,
-      rc.txId,
-      rc.token,
-      qrData
-    );
-
-    // Initial Ledger entries for seed receipts
-    AccountingService.postJournalEntry({
-      entryDate: rc.depositDate,
-      referenceType: 'payment',
-      referenceId: rc.receiptNumber,
-      description: `সদস্য চাঁদা প্রাপ্তি - তানভীর আহমেদ (${rc.memberId}), মাস: ${rc.months}`,
-      lines: [
-        { accountCode: '1020', debit: rc.amount, credit: 0, description: 'ব্যাংক জমা - Sonali Bank' },
-        { accountCode: '4010', debit: 0, credit: rc.amount, description: 'মাসিক চাঁদা আয়' },
-      ],
-      createdBy: 'SOC-2026-0005',
-    });
-  }
-
-  // 7. Seed one Pending Deposit Submission for Treasurer to review and approve!
-  db.prepare(`
-    INSERT INTO payment_submissions (
-      submission_number, member_id, amount, payment_months, society_bank_account_id,
-      member_bank_name, member_branch_name, deposit_date, transaction_id, notes, status
-    ) VALUES (
-      'SUB-2026-00003',
-      'SOC-2026-0008',
-      1000,
-      '2026-02',
-      1,
-      'Sonali Bank',
-      'Dhanmondi',
-      '2026-03-01',
-      'DEP-SLIP-778899',
-      'ফেব্রুয়ারি ২০২৬ মাসের চাঁদা জমা দেওয়া হলো। স্লিপ সংযুক্ত।',
-      'pending'
-    )
-  `).run();
-
-  // 8. Seed Expense Voucher (Double-Entry)
-  const expRes = db.prepare(`
-    INSERT INTO expense_records (
-      voucher_number, category, amount, expense_date, payment_method, bank_account_id,
-      payee_name, description, status, approved_by, created_by
-    ) VALUES (
-      'VCH-2026-00001',
-      'office_rent',
-      15000,
-      '2026-02-01',
-      'bank',
-      1,
-      'হাজী মোজাম্মেল হক (মালিক)',
-      'ফেব্রুয়ারি ২০২৬ মাসের অফিস ভাড়া পরিশোধ',
-      'approved',
-      'SOC-2026-0003',
-      'SOC-2026-0005'
-    )
-  `).run();
-
-  AccountingService.postJournalEntry({
-    entryDate: '2026-02-01',
-    referenceType: 'expense',
-    referenceId: 'VCH-2026-00001',
-    description: 'অফিস ভাড়া পরিশোধ (ফেব্রুয়ারি ২০২৬)',
-    lines: [
-      { accountCode: '5010', debit: 15000, credit: 0, description: 'অফিস ভাড়া ব্যয়' },
-      { accountCode: '1020', debit: 0, credit: 15000, description: 'সোনালী ব্যাংক হতে পরিশোধ' },
-    ],
-    createdBy: 'SOC-2026-0005',
-  });
-
-  // 9. Pre-seed Official Notices
+  // 5. Official Statutory Notice (Strict No Loans Policy)
   const insertNotice = db.prepare(`
     INSERT INTO notices (
       notice_number, title_bn, title_en, content_bn, content_en, priority,
-      target_role, publish_date, is_published, created_by
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'SOC-2026-0004')
+      target_role, publish_date, is_published, created_by, society_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 'SOC-2026-0001', 1)
   `);
 
   insertNotice.run(
     'NOT-2026-0001',
-    'মার্চ ২০২৬ মাসের নিয়মিত মাসিক চাঁদা পরিশোধের সময়সূচী',
-    'Schedule for Payment of March 2026 Monthly Subscription',
-    'সকল সম্মানিত সদস্যবৃন্দের অবগতির জন্য জানানো যাচ্ছে যে, মার্চ ২০২৬ মাসের মাসিক চাঁদা আগামী ১৫ই মার্চের মধ্যে সমিতির অফিসিয়াল ব্যাংক হিসাবে জমা দেওয়ার জন্য অনুরোধ করা যাচ্ছে। জমা রশিদ সিস্টেমে সাবমিট করে ডিজিটাল রসিদ গ্রহণ করুন।',
-    'All members are requested to deposit the monthly subscription of March 2026 into the official bank account by March 15th.',
-    'important',
-    'all',
-    '2026-03-01'
-  );
-
-  insertNotice.run(
-    'NOT-2026-0002',
     'জরুরি নোটিশ: সমিতি কর্তৃক কোনো প্রকার ঋণ প্রদান করা হয় না',
     'Urgent Notice: No Loans are Provided by the Society',
-    'সোসাইটির সকল সদস্য ও শুভানুধ্যায়ীদের বিশেষভাবে সতর্ক করা হচ্ছে যে, প্রগতি কল্যাণ সমবায় সমিতি কেবল সদস্যদের কল্যাণ, মাসিক সঞ্চয় ও সমাজসেবামূলক কর্মকাণ্ড পরিচালনা করে। কোনো ব্যক্তি বা সংস্থাকে কোনো ধরনের ঋণ প্রদান করা হয় না এবং ভবিষ্যতেও হবে না। ভুয়া তথ্য ও প্রতারণা থেকে সাবধান থাকুন।',
+    'সোসাইটির সকল সদস্য ও শুভানুধ্যায়ীদের বিশেষভাবে সতর্ক করা হচ্ছে যে, সমিতি কেবল সদস্যদের কল্যাণ, মাসিক সঞ্চয় ও সমাজসেবামূলক কর্মকাণ্ড পরিচালনা করে। কোনো ব্যক্তি বা সংস্থাকে কোনো ধরনের ঋণ প্রদান করা হয় না এবং ভবিষ্যতেও হবে না। ভুয়া তথ্য ও প্রতারণা থেকে সাবধান থাকুন।',
     'Notice to all members: This society strictly does not provide any loans. Beware of fraudulent offers.',
     'urgent',
     'all',
-    '2026-02-15'
+    '2026-01-01'
   );
 
-  // 10. Pre-seed Upcoming Meeting
-  db.prepare(`
-    INSERT INTO meetings (
-      title, meeting_type, date_time, location, agenda, minutes, resolutions, is_published, created_by
-    ) VALUES (
-      'কার্যনির্বাহী পরিষদের দ্বি-মাসিক সভা - মার্চ ২০২৬',
-      'executive',
-      '2026-03-20T17:00',
-      'সমিতির প্রধান কার্যালয় (সম্মেলন কক্ষ), ধানমন্ডি',
-      '১. বিগত সভার কার্যবিবরণী নিশ্চিতকরণ।\n২. ফেব্রুয়ারি মাসের আয়-ব্যয় অনুমোদন।\n৩. ডিজিটাল রসিদ ও কিউআর যাচাই ব্যবস্থার অগ্রগতি পর্যালোচনা।\n৪. বিবিধ।',
-      'বিগত সভার সিদ্ধান্তসমূহ সর্বসম্মতিক্রমে অনুমোদিত হয়। ডিজিটাল রসিদ কার্যক্রম দ্রুত বাস্তবায়নে কোষাধ্যক্ষকে নির্দেশ প্রদান করা হয়।',
-      'সকল সদস্যের ডিজিটাল রসিদ বাধ্যতামূলক করা হলো। কোনো কাগজের রসিদ বৈধ হিসেবে গণ্য হবে না।',
-      1,
-      'SOC-2026-0004'
-    )
-  `).run();
-
-  // 11. Pre-seed Official Society Documents
-  const insertDoc = db.prepare(`
-    INSERT INTO society_documents (title, category, file_url, file_size, access_level, uploaded_by)
-    VALUES (?, ?, ?, ?, ?, 'SOC-2026-0004')
-  `);
-
-  insertDoc.run('সমিতির অনুমোদিত উপ-আইন (Bylaws) ও গঠনতন্ত্র', 'bylaw', '/documents/bylaws-2026.pdf', '2.4 MB', 'members_only');
-  insertDoc.run('সমবায় অধিদপ্তর নিবন্ধন সনদপত্র (Reg Certificate)', 'registration', '/documents/registration-cert.pdf', '1.1 MB', 'public');
-  insertDoc.run('বার্ষিক অডিট প্রতিবেদন ২০২৩-২০২৪', 'audit', '/documents/annual-audit-report.pdf', '3.8 MB', 'members_only');
-
-  // 12. Pre-seed Support Ticket
-  db.prepare(`
-    INSERT INTO support_tickets (
-      ticket_number, member_id, subject, category, message, status, priority, admin_response, resolved_by, resolved_at
-    ) VALUES (
-      'TKT-2026-0001',
-      'SOC-2026-0007',
-      'মোবাইল ব্যাংকিং থেকে সরাসরি জমা দেওয়ার সুবিধা',
-      'general',
-      'আসসালামু আলাইকুম, ব্যাংকের পাশাপাশি সরাসরি বিকাশ বা নগদ একাউন্টে সমিতির পক্ষ থেকে জমা নেওয়া সম্ভব কি না জানালে উপকৃত হতাম।',
-      'resolved',
-      'normal',
-      'ওয়ালাইকুম আসসালাম। সমিতির হিসাবের স্বচ্ছতা ও ডাবল-এন্ট্রি অডিট নিয়মানুযায়ী সকল অর্থ কেবল অনুমোদিত ব্যাংক একাউন্টে জমা নেওয়া হয়। তবে আপনি বিকাশ/নগদের "ব্যাংক ডিপোজিট" সুবিধা ব্যবহার করে সরাসরি সমিতির ব্যাংক একাউন্টে জমা করতে পারবেন।',
-      'SOC-2026-0004',
-      CURRENT_TIMESTAMP
-    )
-  `).run();
-
-  console.log('Seeding completed successfully!');
+  console.log('Clean production seeding completed successfully!');
 }
 
 if (process.argv[1]?.includes('seed.ts')) {

@@ -92,7 +92,7 @@ export const ShareCertificateModal: React.FC<ShareCertificateModalProps> = ({ me
                     {society?.name_bn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}
                   </h1>
                   <p className="text-xs text-slate-500 font-mono">
-                    রেজিস্ট্রেশন নং: <strong className="text-slate-800">{society?.reg_no || 'রেজি-ঢাকা-২০২৬-৯৮৪'}</strong> • স্থাপিত: {society?.est_date || '২০২৬'}
+                    রেজিস্ট্রেশন নং: <strong className="text-slate-800">{society?.reg_no || 'রেজি-ঢাকা-২০২৬-৯৮৪'}</strong> • স্থাপিত: {(society as any)?.est_date || '২০২৬'}
                   </p>
                 </div>
               </div>

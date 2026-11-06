@@ -153,7 +153,7 @@ export const NoticesPage: React.FC = () => {
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={() => {
-                    const text = `*${society?.fullNameBn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\n` +
+                    const text = `*${society?.name_bn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\n` +
                       `বিজ্ঞপ্তি নং: ${n.notice_number}\n` +
                       `বিষয়: ${n.title_bn}\n` +
                       `তারিখ: ${n.publish_date}\n\n` +
@@ -168,7 +168,7 @@ export const NoticesPage: React.FC = () => {
                 </button>
                 <button
                   onClick={() => {
-                    const text = `*${society?.fullNameBn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\nবিজ্ঞপ্তি: ${n.title_bn}\n${n.content_bn}`;
+                    const text = `*${society?.name_bn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\nবিজ্ঞপ্তি: ${n.title_bn}\n${n.content_bn}`;
                     window.open(`https://t.me/share/url?url=${encodeURIComponent(window.location.origin)}&text=${encodeURIComponent(text)}`, '_blank');
                   }}
                   className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1 transition shadow-sm"

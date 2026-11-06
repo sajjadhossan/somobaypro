@@ -34,7 +34,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
 
   const handleShareWhatsApp = () => {
     const url = `${window.location.origin}/verify/${receipt.receipt_number}?token=${receipt.verification_token}`;
-    const text = `*${society?.fullNameBn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\n` +
+    const text = `*${society?.name_bn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\n` +
       `ডিজিটাল মানি রসিদ নং: ${receipt.receipt_number}\n` +
       `সদস্য: ${receipt.member_name_bn} (${receipt.member_id})\n` +
       `জমাদানকারী: ${receipt.depositor_name || receipt.member_name_bn} (${receipt.depositor_relation || 'নিজ'})\n` +
@@ -46,7 +46,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ receipt, onClose }) 
 
   const handleShareTelegram = () => {
     const url = `${window.location.origin}/verify/${receipt.receipt_number}?token=${receipt.verification_token}`;
-    const text = `*${society?.fullNameBn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\n` +
+    const text = `*${society?.name_bn || 'প্রগতি কল্যাণ সমবায় সমিতি লিমিটেড'}*\n` +
       `ডিজিটাল মানি রসিদ নং: ${receipt.receipt_number}\n` +
       `সদস্য: ${receipt.member_name_bn} (${receipt.member_id}) - পরিমাণ: ৳${Number(receipt.amount).toLocaleString('bn-BD')}`;
     window.open(`https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`, '_blank');
