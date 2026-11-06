@@ -10,8 +10,12 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 // ==========================================
 // 1. Neon Postgres Service
 // ==========================================
-export const DATABASE_URL = process.env.DATABASE_URL || '';
-export const DATABASE_URL_UNPOOLED = process.env.DATABASE_URL_UNPOOLED || '';
+export const DATABASE_URL =
+  process.env.DATABASE_URL ||
+  'postgresql://neondb_owner:npg_PplBFE67sgGz@ep-muddy-surf-az9i5aeb-pooler.c-3.ap-southeast-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require';
+export const DATABASE_URL_UNPOOLED =
+  process.env.DATABASE_URL_UNPOOLED ||
+  'postgresql://neondb_owner:npg_PplBFE67sgGz@ep-muddy-surf-az9i5aeb.c-3.ap-southeast-1.aws.neon.tech/neondb?channel_binding=require&sslmode=require';
 
 let sqlInstance: NeonQueryFunction<false, false> | null = null;
 
@@ -28,9 +32,9 @@ export function getNeonSql(): NeonQueryFunction<false, false> {
 // ==========================================
 // 2. Neon Object Storage Service (S3-compatible)
 // ==========================================
-export const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || '';
-export const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || '';
-export const AWS_ENDPOINT_URL_S3 = process.env.AWS_ENDPOINT_URL_S3 || '';
+export const AWS_ACCESS_KEY_ID = process.env.AWS_ACCESS_KEY_ID || 'nak_live_343be07f644642a8bba3718c204b97f1';
+export const AWS_SECRET_ACCESS_KEY = process.env.AWS_SECRET_ACCESS_KEY || 'nsk_live_2144da7b4e803c9768b8824c1ee7cb5c408a4c87a1019eb27fd5df76d1095437';
+export const AWS_ENDPOINT_URL_S3 = process.env.AWS_ENDPOINT_URL_S3 || 'https://br-blue-dream-azewc3tn.storage.c-3.ap-southeast-1.aws.neon.tech';
 export const AWS_REGION = process.env.AWS_REGION || 'ap-southeast-1';
 export const ASSETS_BUCKET = 'assets';
 
@@ -65,8 +69,12 @@ export async function uploadToNeonStorage(key: string, body: Buffer | Uint8Array
 // ==========================================
 // 3. Neon Auth Service
 // ==========================================
-export const NEON_AUTH_BASE_URL = process.env.NEON_AUTH_BASE_URL || '';
-export const NEON_AUTH_JWKS_URL = process.env.NEON_AUTH_JWKS_URL || '';
+export const NEON_AUTH_BASE_URL =
+  process.env.NEON_AUTH_BASE_URL ||
+  'https://ep-muddy-surf-az9i5aeb.neonauth.c-3.ap-southeast-1.aws.neon.tech/neondb/auth';
+export const NEON_AUTH_JWKS_URL =
+  process.env.NEON_AUTH_JWKS_URL ||
+  'https://ep-muddy-surf-az9i5aeb.neonauth.c-3.ap-southeast-1.aws.neon.tech/neondb/auth/.well-known/jwks.json';
 
 let authClientInstance: any = null;
 
@@ -92,8 +100,10 @@ export async function getNeonAuthJwks() {
 // ==========================================
 // 4. Neon Realtime Service
 // ==========================================
-export const NEON_REALTIME_URL = process.env.NEON_REALTIME_URL || '';
-export const NEON_REALTIME_SECRET = process.env.NEON_REALTIME_SECRET || '';
+export const NEON_REALTIME_URL =
+  process.env.NEON_REALTIME_URL || 'wss://ep-muddy-surf-az9i5aeb.rt.c-3.ap-southeast-1.aws.neon.tech/';
+export const NEON_REALTIME_SECRET =
+  process.env.NEON_REALTIME_SECRET || 'nrt_live_1MrcdkAkqYcyuskYxgJMSp7ax1Lgwm_msUXu1q6nurWA';
 
 // ==========================================
 // End-to-End Health & Diagnostic Checker

@@ -51,6 +51,59 @@ router.get('/auth/jwks', async (req: Request, res: Response) => {
   }
 });
 
+import { db } from '../db/index.js';
+
+function syncNeonUserToDatabase(email: string, name?: string) {
+  const cleanEmail = email.trim().toLowerCase();
+  let user = db.prepare(`SELECT * FROM users WHERE email = ? OR mobile = ?`).get(cleanEmail, cleanEmail) as any;
+
+  if (!user) {
+    const countRow = db.prepare(`SELECT count(*) as count FROM members`).get() as { count: number };
+    const memberId = `NEON-${String(countRow.count + 1).padStart(4, '0')}`;
+    const today = new Date().toISOString().split('T')[0];
+    const displayName = (name && name.trim()) || cleanEmail.split('@')[0];
+
+    db.transaction(() => {
+      db.prepare(`
+        INSERT INTO members (
+          member_id, full_name_bn, full_name_en, mobile, email, joining_date,
+          membership_type, membership_fee, monthly_subscription_amount, designation, membership_status
+        ) VALUES (?, ?, ?, ?, ?, ?, 'regular', 500, 1000, 'সাধারণ সদস্য', 'active')
+      `).run(memberId, displayName, displayName, cleanEmail, cleanEmail, today);
+
+      db.prepare(`
+        INSERT INTO users (
+          member_id, mobile, email, password_hash, role, account_status, permissions
+        ) VALUES (?, ?, ?, 'NEON_MANAGED_AUTH', 'general_member', 'active', '["view_own_dues","submit_deposit","view_own_receipts"]')
+      `).run(memberId, cleanEmail, cleanEmail);
+    })();
+
+    user = db.prepare(`SELECT * FROM users WHERE email = ? OR mobile = ?`).get(cleanEmail, cleanEmail) as any;
+  }
+
+  const member = db.prepare(`SELECT * FROM members WHERE member_id = ?`).get(user.member_id) as any;
+
+  let parsedPermissions: string[] = [];
+  try {
+    parsedPermissions = JSON.parse(user.permissions || '[]');
+  } catch {
+    parsedPermissions = ['view_own_dues', 'submit_deposit', 'view_own_receipts'];
+  }
+
+  return {
+    id: user.id,
+    memberId: user.member_id,
+    mobile: user.mobile,
+    email: user.email || cleanEmail,
+    role: user.role,
+    accountStatus: user.account_status,
+    permissions: parsedPermissions,
+    fullNameBn: member?.full_name_bn || name || 'সমবায় সদস্য',
+    fullNameEn: member?.full_name_en || name || 'Somobay Member',
+    membershipStatus: member?.membership_status || 'active',
+  };
+}
+
 // POST /api/neon/auth/signup - Neon Managed Better Auth Email Signup
 router.post('/auth/signup', async (req: Request, res: Response) => {
   try {
@@ -58,46 +111,70 @@ router.post('/auth/signup', async (req: Request, res: Response) => {
     if (!email || !password) {
       return res.status(400).json({ success: false, error: 'Email and password are required' });
     }
+    const cleanEmail = email.trim().toLowerCase();
     const { getNeonAuthClient } = await import('../services/neon.js');
     const { generateToken } = await import('../middleware/auth.js');
     const authClient = await getNeonAuthClient();
-    const effectiveCallback = callbackURL || 'https://somobaypro.vercel.app';
-    const result = await authClient.signUp.email(
-      {
-        email,
-        password,
-        name: name || email.split('@')[0],
-        callbackURL: effectiveCallback,
-      },
-      {
-        headers: {
-          origin: effectiveCallback,
-        },
-      }
-    );
+    const effectiveOrigin = (req.headers.origin as string) || callbackURL || 'https://somobaypro.vercel.app';
+    const effectiveCallback = callbackURL || effectiveOrigin;
 
-    const neonUser = result.data?.user || result.user || {};
-    const appUser = {
-      id: 9999,
-      memberId: 'NEON-' + (neonUser.id || Date.now()).toString().slice(0, 8).toUpperCase(),
-      mobile: email,
-      role: 'general_member',
-      accountStatus: 'active',
-      permissions: ['view_own_dues', 'submit_deposit', 'view_own_receipts'],
-      fullNameBn: name || 'সমবায় সদস্য',
-      fullNameEn: name || 'Somobay Member',
-      email: email,
-    };
+    let neonUser: any = null;
+    try {
+      const result = await authClient.signUp.email(
+        {
+          email: cleanEmail,
+          password,
+          name: name || cleanEmail.split('@')[0],
+          callbackURL: effectiveCallback,
+        },
+        {
+          headers: {
+            origin: effectiveOrigin,
+          },
+        }
+      );
+      if (result?.error) {
+        throw new Error(result.error.message || 'Neon signup failed');
+      }
+      neonUser = result?.data?.user || result?.user;
+    } catch (err: any) {
+      // If user already registered in Neon, automatically try signing in
+      if (err.message && err.message.toLowerCase().includes('already exists')) {
+        const signinRes = await authClient.signIn.email(
+          {
+            email: cleanEmail,
+            password,
+            callbackURL: effectiveCallback,
+          },
+          {
+            headers: {
+              origin: effectiveOrigin,
+            },
+          }
+        );
+        if (signinRes?.error) {
+          return res.status(400).json({
+            success: false,
+            error: 'এই ইমেইল দিয়ে ইতিমধ্যে অ্যাকাউন্ট তৈরি আছে। দয়া করে সাইন-ইন ট্যাবে পাসওয়ার্ড দিয়ে লগইন করুন।'
+          });
+        }
+        neonUser = signinRes?.data?.user || signinRes?.user;
+      } else {
+        throw err;
+      }
+    }
+
+    const appUser = syncNeonUserToDatabase(cleanEmail, name || neonUser?.name);
     const token = generateToken(appUser as any);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       token,
       user: appUser,
       neonUser,
     });
   } catch (err: any) {
-    res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: err.message || 'Signup failed' });
   }
 });
 
@@ -108,45 +185,45 @@ router.post('/auth/signin', async (req: Request, res: Response) => {
     if (!email || !password) {
       return res.status(400).json({ success: false, error: 'Email and password are required' });
     }
+    const cleanEmail = email.trim().toLowerCase();
     const { getNeonAuthClient } = await import('../services/neon.js');
     const { generateToken } = await import('../middleware/auth.js');
     const authClient = await getNeonAuthClient();
-    const effectiveCallback = callbackURL || 'https://somobaypro.vercel.app';
+    const effectiveOrigin = (req.headers.origin as string) || callbackURL || 'https://somobaypro.vercel.app';
+    const effectiveCallback = callbackURL || effectiveOrigin;
+
     const result = await authClient.signIn.email(
       {
-        email,
+        email: cleanEmail,
         password,
         callbackURL: effectiveCallback,
       },
       {
         headers: {
-          origin: effectiveCallback,
+          origin: effectiveOrigin,
         },
       }
     );
 
+    if (result?.error) {
+      return res.status(401).json({
+        success: false,
+        error: result.error.message || 'ভুল ইমেইল বা পাসওয়ার্ড প্রদান করা হয়েছে'
+      });
+    }
+
     const neonUser = result.data?.user || result.user || {};
-    const appUser = {
-      id: 9999,
-      memberId: 'NEON-' + (neonUser.id || Date.now()).toString().slice(0, 8).toUpperCase(),
-      mobile: email,
-      role: 'general_member',
-      accountStatus: 'active',
-      permissions: ['view_own_dues', 'submit_deposit', 'view_own_receipts'],
-      fullNameBn: neonUser.name || 'সমবায় সদস্য',
-      fullNameEn: neonUser.name || 'Somobay Member',
-      email: email,
-    };
+    const appUser = syncNeonUserToDatabase(cleanEmail, neonUser.name);
     const token = generateToken(appUser as any);
 
-    res.json({
+    return res.json({
       success: true,
       token,
       user: appUser,
       session: result.data?.session || result.session,
     });
   } catch (err: any) {
-    res.status(401).json({ success: false, error: err.message });
+    return res.status(401).json({ success: false, error: err.message || 'Authentication failed' });
   }
 });
 
