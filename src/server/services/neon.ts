@@ -68,6 +68,16 @@ export async function uploadToNeonStorage(key: string, body: Buffer | Uint8Array
 export const NEON_AUTH_BASE_URL = process.env.NEON_AUTH_BASE_URL || '';
 export const NEON_AUTH_JWKS_URL = process.env.NEON_AUTH_JWKS_URL || '';
 
+let authClientInstance: any = null;
+
+export async function getNeonAuthClient() {
+  if (!authClientInstance) {
+    const { createAuthClient } = await import('@neon/auth');
+    authClientInstance = createAuthClient(NEON_AUTH_BASE_URL);
+  }
+  return authClientInstance;
+}
+
 export async function getNeonAuthJwks() {
   if (!NEON_AUTH_JWKS_URL) {
     throw new Error('NEON_AUTH_JWKS_URL is not defined in environment variables');

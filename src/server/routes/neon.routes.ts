@@ -51,4 +51,84 @@ router.get('/auth/jwks', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/neon/auth/signup - Neon Managed Better Auth Email Signup
+router.post('/auth/signup', async (req: Request, res: Response) => {
+  try {
+    const { email, password, name, callbackURL } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: 'Email and password are required' });
+    }
+    const { getNeonAuthClient } = await import('../services/neon.js');
+    const authClient = await getNeonAuthClient();
+    const effectiveCallback = callbackURL || 'https://somobaypro.vercel.app';
+    const result = await authClient.signUp.email(
+      {
+        email,
+        password,
+        name: name || email.split('@')[0],
+        callbackURL: effectiveCallback,
+      },
+      {
+        headers: {
+          origin: effectiveCallback,
+        },
+      }
+    );
+    res.status(201).json({
+      success: true,
+      user: result.data?.user || result.user,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST /api/neon/auth/signin - Neon Managed Better Auth Email Signin
+router.post('/auth/signin', async (req: Request, res: Response) => {
+  try {
+    const { email, password, callbackURL } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: 'Email and password are required' });
+    }
+    const { getNeonAuthClient } = await import('../services/neon.js');
+    const authClient = await getNeonAuthClient();
+    const effectiveCallback = callbackURL || 'https://somobaypro.vercel.app';
+    const result = await authClient.signIn.email(
+      {
+        email,
+        password,
+        callbackURL: effectiveCallback,
+      },
+      {
+        headers: {
+          origin: effectiveCallback,
+        },
+      }
+    );
+    res.json({
+      success: true,
+      user: result.data?.user || result.user,
+      session: result.data?.session || result.session,
+    });
+  } catch (err: any) {
+    res.status(401).json({ success: false, error: err.message });
+  }
+});
+
+// GET /api/neon/auth/users - Read registered Better Auth users from PostgreSQL
+router.get('/auth/users', async (req: Request, res: Response) => {
+  try {
+    const sql = getNeonSql();
+    const users = await sql`
+      SELECT id, name, email, "emailVerified", "createdAt" 
+      FROM neon_auth.user 
+      ORDER BY "createdAt" DESC 
+      LIMIT 20;
+    `;
+    res.json({ success: true, count: users.length, users });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default router;
